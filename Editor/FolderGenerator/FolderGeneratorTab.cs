@@ -20,7 +20,7 @@ namespace GlyphLabs
 
         // ── List mode state ──────────────────────────────────────────────────────
 
-        private List<FolderTemplate> _templates = new List<FolderTemplate>();
+        private List<FolderTemplate> _templates = new();
         private string[] _templateNames = new string[0];
         private int _selectedIndex = 0;
 
@@ -33,34 +33,34 @@ namespace GlyphLabs
         private FolderTreeView _treeView;
         private TreeViewState<int> _treeViewState;
 
-        // Tracks the last template + root combination loaded into the tree
-        // so Reload is only called when something actually changed, not every frame.
         private FolderTemplate _lastTreeTemplate;
         private string _lastTreeRootPath;
 
-        // Fixed height reserved for the tree view rect inside the scroll view.
         private const float TreeViewHeight = 220f;
 
         // ── Creator state ────────────────────────────────────────────────────────
 
-        private readonly TemplateCreatorTab _creator = new TemplateCreatorTab();
+        private readonly TemplateCreatorTab _creator = new();
 
-        // ── Lifecycle (called by PristinePipelineWindow) ─────────────────────────
+        // ── Lifecycle ────────────────────────────────────────────────────────────
 
         public void OnEnable()
         {
-            // Tree view must be initialized before RefreshTemplates —
-            // DrawFolderPreview will call Reload on it immediately after.
             _treeViewState = new TreeViewState<int>();
             _treeView = new FolderTreeView(_treeViewState);
+
             RefreshTemplates();
+
+            // Force an initial Reload so _reloaded is true before the first
+            // OnGUI frame arrives. Without this, Draw() is called before Reload()
+            // has ever run which corrupts Unity's GUIClip stack.
+            ForceTreeReload();
         }
 
         public void OnDisable() { }
 
         // ── Entry point ──────────────────────────────────────────────────────────
 
-        /// <summary>Called every OnGUI frame by PristinePipelineWindow.</summary>
         public void Draw(EditorWindow parentWindow)
         {
             switch (_mode)
@@ -80,7 +80,7 @@ namespace GlyphLabs
             PristinePipelineWindow.DrawDivider();
             DrawGenerationOptions();
             PristinePipelineWindow.DrawDivider();
-            DrawGenerateButton(parentWindow);
+            DrawGenerateButton();
         }
 
         // ── Template selector ────────────────────────────────────────────────────
@@ -127,7 +127,6 @@ namespace GlyphLabs
         {
             float halfWidth = (EditorGUIUtility.currentViewWidth - 24f) / 2f;
 
-            // Row 1 — New / Edit
             using (new EditorGUILayout.HorizontalScope())
             {
                 if (GUILayout.Button("New Template", GUILayout.Width(halfWidth)))
@@ -151,7 +150,6 @@ namespace GlyphLabs
 
             EditorGUILayout.Space(4);
 
-            // Row 2 — Duplicate / Delete
             using (new EditorGUILayout.HorizontalScope())
             {
                 GUI.enabled = selected != null;
@@ -187,7 +185,6 @@ namespace GlyphLabs
 
             EditorGUILayout.Space(4);
 
-            // Row 3 — Import / Export
             using (new EditorGUILayout.HorizontalScope())
             {
                 if (GUILayout.Button("Import JSON", GUILayout.Width(halfWidth)))
@@ -229,25 +226,14 @@ namespace GlyphLabs
                 EditorGUILayout.LabelField("Preview", EditorStyles.boldLabel);
                 GUILayout.FlexibleSpace();
 
-                // Guard against _treeView being null before buttons are drawn
-                GUI.enabled = _treeView != null;
-
                 if (GUILayout.Button("Expand All", GUILayout.Width(82)))
                     _treeView.ExpandAll();
 
                 if (GUILayout.Button("Collapse All", GUILayout.Width(86)))
                     _treeView.CollapseAll();
-
-                GUI.enabled = true;
             }
 
             EditorGUILayout.Space(2);
-
-            if (_treeView == null)
-            {
-                EditorGUILayout.HelpBox("Tree view not initialized.", MessageType.Warning);
-                return;
-            }
 
             if (ActiveTemplate == null || ActiveTemplate.FolderPaths.Count == 0)
             {
@@ -257,9 +243,10 @@ namespace GlyphLabs
                 return;
             }
 
-            // Reload only when template or root path actually changed
-            string currentRoot = FolderGeneratorUtility.ResolveRootPath(_useProjectRoot, _projectName);
+            string currentRoot = FolderGeneratorUtility.ResolveRootPath(
+                _useProjectRoot, _projectName);
 
+            // Reload only when data changed — preserves expand/collapse state
             if (ActiveTemplate != _lastTreeTemplate || currentRoot != _lastTreeRootPath)
             {
                 _treeView.Reload(ActiveTemplate, currentRoot);
@@ -267,6 +254,9 @@ namespace GlyphLabs
                 _lastTreeRootPath = currentRoot;
             }
 
+            // Reserve explicit rect for the tree — TreeView<int> does not use
+            // auto-layout. GetControlRect integrates with the layout system so
+            // surrounding elements are not displaced.
             Rect treeRect = EditorGUILayout.GetControlRect(false, TreeViewHeight);
             _treeView.Draw(treeRect);
         }
@@ -311,7 +301,7 @@ namespace GlyphLabs
 
         // ── Generate button ──────────────────────────────────────────────────────
 
-        private void DrawGenerateButton(EditorWindow parentWindow)
+        private void DrawGenerateButton()
         {
             EditorGUILayout.Space(4);
 
@@ -327,7 +317,9 @@ namespace GlyphLabs
 
             if (GUILayout.Button("Generate Folder Structure", GUILayout.Height(36)))
             {
-                string rootPath = FolderGeneratorUtility.ResolveRootPath(_useProjectRoot, _projectName);
+                string rootPath = FolderGeneratorUtility.ResolveRootPath(
+                    _useProjectRoot, _projectName);
+
                 FolderGeneratorUtility.CreateFolders(ActiveTemplate, rootPath, _addKeepFiles);
 
                 EditorUtility.DisplayDialog(
@@ -353,7 +345,7 @@ namespace GlyphLabs
                 int idx = _templates.IndexOf(savedTemplate);
                 if (idx >= 0) _selectedIndex = idx;
                 _mode = Mode.List;
-                InvalidateTreeCache();
+                ForceTreeReload();
                 parentWindow.Repaint();
             }
             else if (wantsBack)
@@ -386,7 +378,27 @@ namespace GlyphLabs
         }
 
         /// <summary>
-        /// Clears the cached template/root so the tree view reloads on next draw.
+        /// Immediately calls Reload on the tree view with the current active
+        /// template and root path. Updates the cache fields so DrawFolderPreview
+        /// does not call Reload again on the next frame.
+        /// Use this whenever you need the tree in a known-good state outside
+        /// of the normal DrawFolderPreview flow — specifically in OnEnable and
+        /// after returning from CreateEdit mode.
+        /// </summary>
+        private void ForceTreeReload()
+        {
+            string root = FolderGeneratorUtility.ResolveRootPath(
+                _useProjectRoot, _projectName);
+
+            _treeView.Reload(ActiveTemplate, root);
+            _lastTreeTemplate = ActiveTemplate;
+            _lastTreeRootPath = root;
+        }
+
+        /// <summary>
+        /// Clears the cache so DrawFolderPreview calls Reload on the next frame.
+        /// Use this when you know data changed but want the reload deferred to
+        /// the next draw pass rather than happening immediately.
         /// </summary>
         private void InvalidateTreeCache()
         {

@@ -8,21 +8,15 @@ namespace GlyphLabs
 {
     /// <summary>
     /// Displays a FolderTemplate's paths as a collapsible folder hierarchy.
-    /// Display only — no selection, no editing. Fully expanded by default
-    /// whenever the backing data changes.
-    ///
-    /// Lifecycle:
-    ///   1. Construct once and hold on FolderGeneratorTab.
-    ///   2. Call Reload(template, rootPath) whenever the template or root changes.
-    ///   3. Call Draw(rect) inside OnGUI to render.
+    /// Display only — no selection, no editing.
+    /// Fully expanded by default whenever backing data changes.
     /// </summary>
     public class FolderTreeView : TreeView<int>
     {
-        // ── Tree item ────────────────────────────────────────────────────────────
+        // ── FolderItem ───────────────────────────────────────────────────────────
 
         private sealed class FolderItem : TreeViewItem<int>
         {
-            /// <summary>Full Unity asset path shown as a tooltip.</summary>
             public string FullPath { get; }
 
             public FolderItem(int id, int depth, string displayName, string fullPath)
@@ -36,45 +30,84 @@ namespace GlyphLabs
 
         private FolderTemplate _template;
         private string _rootPath;
+        private bool _reloaded = false;
 
         // ── Construction ─────────────────────────────────────────────────────────
 
-        // TreeViewState<int> is the non-deprecated companion to TreeView<int>
-        public FolderTreeView(TreeViewState<int> state) : base(state) { }
+        public FolderTreeView(TreeViewState<int> state) : base(state)
+        {
+            rowHeight = 18f;
+            showBorder = true;
+        }
 
         // ── Public API ───────────────────────────────────────────────────────────
 
         /// <summary>
-        /// Rebuilds the tree from the given template and root path, then
-        /// expands all nodes. Call whenever the template or root path changes.
-        /// Passing null clears the tree.
+        /// Rebuilds the tree from the given template and root path.
+        /// Must be called at least once before Draw().
+        /// ExpandAll() is called here — AFTER base.Reload() completes —
+        /// because ExpandAll() requires the tree's internal controller to be
+        /// fully initialised, which only happens once Reload() returns.
+        /// Calling ExpandAll() inside BuildRoot() causes a NullReferenceException.
         /// </summary>
         public void Reload(FolderTemplate template, string rootPath)
         {
             _template = template;
-            _rootPath = rootPath;
-            Reload();               // triggers BuildRoot → ExpandAll
+            _rootPath = string.IsNullOrEmpty(rootPath) ? "Assets" : rootPath;
+            _reloaded = false;
+
+            // base.Reload() calls BuildRoot() internally and constructs the item
+            // list. By the time this line returns the tree has valid data.
+            Reload();
+
+            // ExpandAll() is safe here — the controller is fully initialised
+            // after Reload() completes. Never call it inside BuildRoot().
+            ExpandAll();
+
+            _reloaded = true;
         }
 
-        /// <summary>Renders the tree view inside the given rect.</summary>
-        public void Draw(Rect rect) => OnGUI(rect);
+        /// <summary>
+        /// Renders the tree into the given rect.
+        /// The rect must come from EditorGUILayout.GetControlRect().
+        /// </summary>
+        public void Draw(Rect rect)
+        {
+            if (!_reloaded)
+                return;
+
+            EventType type = Event.current.type;
+            if (type != EventType.Repaint &&
+                type != EventType.Layout &&
+                type != EventType.MouseDown &&
+                type != EventType.MouseUp &&
+                type != EventType.ScrollWheel &&
+                type != EventType.KeyDown &&
+                type != EventType.KeyUp)
+                return;
+
+            OnGUI(rect);
+        }
 
         // ── TreeView<int> overrides ──────────────────────────────────────────────
 
         protected override TreeViewItem<int> BuildRoot()
         {
-            // Hidden root required by TreeView<int> — never rendered
             var root = new TreeViewItem<int> { id = 0, depth = -1, displayName = "root" };
 
             if (_template == null || _template.FolderPaths.Count == 0)
             {
-                // Empty placeholder so TreeView<int> doesn't throw on an empty list
-                root.AddChild(new TreeViewItem<int> { id = 1, depth = 0, displayName = "(no paths)" });
+                root.AddChild(new TreeViewItem<int>
+                {
+                    id = 1,
+                    depth = 0,
+                    displayName = "(no paths)"
+                });
+
+                SetupDepthsFromParentsAndChildren(root);
                 return root;
             }
 
-            // Parse flat path strings into a trie so shared prefixes become
-            // shared parent nodes, giving us a true folder hierarchy.
             var trieRoot = new TrieNode("root", _rootPath);
             int nextId = 1;
 
@@ -87,39 +120,36 @@ namespace GlyphLabs
                 trieRoot.Insert(segments, _rootPath, ref nextId);
             }
 
-            // Walk the trie and build TreeViewItem<int> instances
             foreach (TrieNode child in trieRoot.Children.Values.OrderBy(n => n.Name))
                 BuildItemsRecursive(root, child, 0);
 
+            // Always call this at the end of BuildRoot — recalculates every
+            // item's depth field from the parent-child relationships we built.
             SetupDepthsFromParentsAndChildren(root);
 
-            // Expand all nodes after build
-            ExpandAll();
+            // NOTE: ExpandAll() is intentionally NOT called here.
+            // It must be called after base.Reload() returns in the public
+            // Reload(template, rootPath) method above.
 
             return root;
         }
 
-        // RowGUIArgs is a non-generic nested struct on TreeView<int> —
-        // referenced as TreeView<int>.RowGUIArgs, NOT parameterized as RowGUIArgs<int>
         protected override void RowGUI(TreeView<int>.RowGUIArgs args)
         {
             float indent = GetContentIndent(args.item);
-            Rect labelRect = new Rect(
+            Rect labelRect = new (
                 args.rowRect.x + indent,
                 args.rowRect.y,
                 args.rowRect.width - indent,
                 args.rowRect.height);
 
-            // Folder icon
-            Rect iconRect = new Rect(labelRect.x, labelRect.y + 1f, 16f, 16f);
+            Rect iconRect = new (labelRect.x, labelRect.y + 1f, 16f, 16f);
             GUI.DrawTexture(
                 iconRect,
                 EditorGUIUtility.IconContent("Folder Icon").image as Texture2D,
                 ScaleMode.ScaleToFit);
 
-            // Display name — GUIContent tooltip set via property to avoid
-            // ambiguity with the (string, Texture) constructor overload
-            Rect textRect = new Rect(
+            Rect textRect = new (
                 labelRect.x + 20f,
                 labelRect.y,
                 labelRect.width - 20f,
@@ -132,30 +162,24 @@ namespace GlyphLabs
             }
             else
             {
-                // Placeholder "(no paths)" row — muted style
-                GUIStyle muted = new GUIStyle(EditorStyles.label)
+                GUIStyle muted = new (EditorStyles.label)
                 { normal = { textColor = Color.gray } };
                 EditorGUI.LabelField(textRect, args.item.displayName, muted);
             }
         }
 
-        // Display only — no selection, no reparenting
         protected override bool CanMultiSelect(TreeViewItem<int> item) => false;
         protected override bool CanBeParent(TreeViewItem<int> item) => true;
 
-        // ── Trie for path parsing ────────────────────────────────────────────────
+        // ── Trie ─────────────────────────────────────────────────────────────────
 
-        /// <summary>
-        /// Minimal trie node. Each node represents one path segment.
-        /// Shared prefixes across paths collapse into shared parent nodes,
-        /// producing the correct folder hierarchy.
-        /// </summary>
         private sealed class TrieNode
         {
             public string Name { get; }
             public string FullPath { get; }
             public int Id { get; set; }
-            public Dictionary<string, TrieNode> Children { get; } = new Dictionary<string, TrieNode>();
+            public Dictionary<string, TrieNode> Children { get; }
+                = new Dictionary<string, TrieNode>();
 
             public TrieNode(string name, string fullPath)
             {
@@ -163,10 +187,6 @@ namespace GlyphLabs
                 FullPath = fullPath;
             }
 
-            /// <summary>
-            /// Inserts a path (already split into segments) into the trie.
-            /// Creates intermediate nodes as needed.
-            /// </summary>
             public void Insert(string[] segments, string parentPath, ref int nextId)
             {
                 if (segments.Length == 0) return;
@@ -176,8 +196,7 @@ namespace GlyphLabs
 
                 if (!Children.TryGetValue(seg, out TrieNode child))
                 {
-                    child = new TrieNode(seg, fullPath);
-                    child.Id = nextId++;
+                    child = new TrieNode(seg, fullPath) { Id = nextId++ };
                     Children[seg] = child;
                 }
 
@@ -185,7 +204,8 @@ namespace GlyphLabs
             }
         }
 
-        private static void BuildItemsRecursive(TreeViewItem<int> parent, TrieNode node, int depth)
+        private static void BuildItemsRecursive(
+            TreeViewItem<int> parent, TrieNode node, int depth)
         {
             var item = new FolderItem(node.Id, depth, node.Name, node.FullPath);
             parent.AddChild(item);
