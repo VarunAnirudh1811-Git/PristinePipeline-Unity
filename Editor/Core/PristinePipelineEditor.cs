@@ -33,6 +33,7 @@ namespace GlyphLabs
 
         private int _activeTab;
         private Vector2 _scrollPosition;
+        private FolderGeneratorTab _folderGeneratorTab;
 
         // ── Entry point ──────────────────────────────────────────────────────────
 
@@ -50,11 +51,14 @@ namespace GlyphLabs
         private void OnEnable()
         {
             _activeTab = ToolSettings.ActiveTab;
+            _folderGeneratorTab = new FolderGeneratorTab();
+            _folderGeneratorTab.OnEnable();
         }
 
         private void OnDisable()
         {
             ToolSettings.ActiveTab = _activeTab;
+            _folderGeneratorTab.OnDisable();
         }
 
         // ── GUI ──────────────────────────────────────────────────────────────────
@@ -80,9 +84,9 @@ namespace GlyphLabs
             {
                 GUIStyle titleStyle = new GUIStyle(EditorStyles.largeLabel)
                 {
-                    fontSize = 15,
+                    fontSize = 16,
                     fontStyle = FontStyle.Bold,
-                    fixedHeight = 22
+                    fixedHeight = 24
                 };
 
                 EditorGUILayout.LabelField(ToolInfo.ToolName, titleStyle);
@@ -116,8 +120,9 @@ namespace GlyphLabs
         }
 
         // ── Divider ──────────────────────────────────────────────────────────────
+        // Called from other classes, hence public
 
-        private void DrawDivider()
+        public static void DrawDivider()
         {
             Rect rect = EditorGUILayout.GetControlRect(false, 1);
             EditorGUI.DrawRect(rect, new Color(0.5f, 0.5f, 0.5f, 0.4f));
@@ -130,10 +135,10 @@ namespace GlyphLabs
         {
             switch (_activeTab)
             {
-                case TabID.FolderGenerator: DrawPlaceholder("Folder Generator", "Phase 2"); break;
+                case TabID.FolderGenerator: _folderGeneratorTab.Draw(this);               break;
                 case TabID.AssetOrganizer: DrawPlaceholder("Asset Organizer", "Phase 3"); break;
-                case TabID.FBXImporter: DrawPlaceholder("FBX Importer", "Phase 4"); break;
-                case TabID.Settings: DrawSettingsTab(); break;
+                case TabID.FBXImporter: DrawPlaceholder("FBX Importer", "Phase 4");       break;
+                case TabID.Settings: DrawSettingsTab();                                   break;
             }
         }
 
@@ -160,6 +165,31 @@ namespace GlyphLabs
                 EditorGUILayout.LabelField("Tool", ToolInfo.ToolName, EditorStyles.label);
                 EditorGUILayout.LabelField("Version", ToolInfo.Version, EditorStyles.label);
                 EditorGUILayout.LabelField("Author", ToolInfo.Author, EditorStyles.label);
+            }
+
+            DrawDivider();
+
+            EditorGUILayout.LabelField("Folder Generator", EditorStyles.boldLabel);
+            EditorGUILayout.Space(4);
+
+            using (new EditorGUI.IndentLevelScope(1))
+            {
+                EditorGUILayout.LabelField(
+                    new GUIContent("Template Save Path", "Where user-created templates are saved."),
+                    EditorStyles.label);
+
+                string current = ToolSettings.FolderGen_TemplateSavePath;
+                string updated = EditorGUILayout.TextField(current);
+
+                if (updated != current)
+                    ToolSettings.FolderGen_TemplateSavePath = updated;
+
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    GUILayout.FlexibleSpace();
+                    if (GUILayout.Button("Reset to Default", GUILayout.Width(120)))
+                        ToolSettings.FolderGen_TemplateSavePath = ToolInfo.DefaultTemplateSavePath;
+                }
             }
 
             DrawDivider();

@@ -7,8 +7,6 @@ namespace GlyphLabs
     /// All keys are namespaced under ToolInfo.SettingsPrefix to avoid collisions.
     /// No tool should call EditorPrefs directly — go through this class.
     /// </summary>
-    
-
     public static class ToolSettings
     {
         // ── Key helpers ──────────────────────────────────────────────────────────
@@ -28,11 +26,22 @@ namespace GlyphLabs
         // ── Folder Generator ─────────────────────────────────────────────────────
 
         private const string FolderGen_ActiveTemplateGuidKey = "FolderGen.ActiveTemplateGuid";
+        private const string FolderGen_TemplateSavePathKey = "FolderGen.TemplateSavePath";
 
         public static string FolderGen_ActiveTemplateGuid
         {
             get => EditorPrefs.GetString(Key(FolderGen_ActiveTemplateGuidKey), string.Empty);
             set => EditorPrefs.SetString(Key(FolderGen_ActiveTemplateGuidKey), value);
+        }
+
+        /// <summary>
+        /// Where user-created templates are saved. Defaults to ToolInfo.DefaultTemplateSavePath.
+        /// Configurable from the Settings tab.
+        /// </summary>
+        public static string FolderGen_TemplateSavePath
+        {
+            get => EditorPrefs.GetString(Key(FolderGen_TemplateSavePathKey), ToolInfo.DefaultTemplateSavePath);
+            set => EditorPrefs.SetString(Key(FolderGen_TemplateSavePathKey), value);
         }
 
         // ── Asset Organizer ──────────────────────────────────────────────────────
@@ -54,7 +63,7 @@ namespace GlyphLabs
 
         // ── FBX Importer ─────────────────────────────────────────────────────────
 
-        private const string FBX_EnabledKey = "FBX.Enabled";
+        private const string FBX_EnabledKey           = "FBX.Enabled";
         private const string FBX_ActiveProfileGuidKey = "FBX.ActiveProfileGuid";
 
         public static bool FBX_Enabled
@@ -79,6 +88,7 @@ namespace GlyphLabs
         {
             EditorPrefs.DeleteKey(Key(ActiveTabKey));
             EditorPrefs.DeleteKey(Key(FolderGen_ActiveTemplateGuidKey));
+            EditorPrefs.DeleteKey(Key(FolderGen_TemplateSavePathKey));
             EditorPrefs.DeleteKey(Key(Organizer_EnabledKey));
             EditorPrefs.DeleteKey(Key(Organizer_ActiveProfileGuidKey));
             EditorPrefs.DeleteKey(Key(FBX_EnabledKey));

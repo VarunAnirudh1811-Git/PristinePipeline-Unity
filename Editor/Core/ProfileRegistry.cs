@@ -51,9 +51,9 @@ namespace GlyphLabs
         // These are the only methods processors and tabs should call.
         // When a new tool is added, add its pair here and nowhere else.
 
-        // Folder Generator — profile type TBD in Phase 2, placeholder kept as ScriptableObject
-        // public static FolderTemplate  GetActiveFolderTemplate()   => Load<FolderTemplate>(ToolSettings.FolderGen_ActiveTemplateGuid);
-        // public static void            SetActiveFolderTemplate(FolderTemplate t) => Save(t, g => ToolSettings.FolderGen_ActiveTemplateGuid = g);
+        // Folder Generator
+        public static FolderTemplate  GetActiveFolderTemplate()   => Load<FolderTemplate>(ToolSettings.FolderGen_ActiveTemplateGuid);
+        public static void            SetActiveFolderTemplate(FolderTemplate t) => Save(t, g => ToolSettings.FolderGen_ActiveTemplateGuid = g);
 
         // Asset Organizer — placeholder, uncommented in Phase 3
         // public static MappingProfile  GetActiveOrganizerProfile()  => Load<MappingProfile>(ToolSettings.Organizer_ActiveProfileGuid);

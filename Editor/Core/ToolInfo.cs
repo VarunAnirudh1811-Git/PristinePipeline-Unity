@@ -14,5 +14,7 @@ namespace GlyphLabs
         public const string MenuRoot = "GlyphLabs/" + ToolName;
         public const string LogPrefix = "[" + ToolName + "]";
         public const string SettingsPrefix = "GlyphLabs.PristinePipeline";
+        public const string DefaultTemplateSavePath = "Assets/GlyphLabs/PristinePipeline/Templates";
+        public const string BuiltInTemplatePath = "Packages/com.glyphlabs.unity-pristine-pipeline/Resources/Templates";
     }
 }

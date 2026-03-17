@@ -2,7 +2,7 @@
     "name": "GlyphLabs.PristinePipeline.Editor",
     "rootNamespace": "GlyphLabs",
     "references": [
-        "GUID:3ca18f0e73275e74eba89ec8b44f8a6c"
+        "GlyphLabs.PristinePipeline.Runtime"
     ],
     "includePlatforms": [
         "Editor"
