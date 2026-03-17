@@ -34,6 +34,7 @@ namespace GlyphLabs
         private int _activeTab;
         private Vector2 _scrollPosition;
         private FolderGeneratorTab _folderGeneratorTab;
+        private AssetOrganizerTab _assetOrganizerTab;
 
         // ── Entry point ──────────────────────────────────────────────────────────
 
@@ -53,12 +54,15 @@ namespace GlyphLabs
             _activeTab = ToolSettings.ActiveTab;
             _folderGeneratorTab = new FolderGeneratorTab();
             _folderGeneratorTab.OnEnable();
+            _assetOrganizerTab = new AssetOrganizerTab();
+            _assetOrganizerTab.OnEnable();
         }
 
         private void OnDisable()
         {
             ToolSettings.ActiveTab = _activeTab;
             _folderGeneratorTab.OnDisable();
+            _assetOrganizerTab.OnDisable();
         }
 
         // ── GUI ──────────────────────────────────────────────────────────────────
@@ -136,7 +140,7 @@ namespace GlyphLabs
             switch (_activeTab)
             {
                 case TabID.FolderGenerator: _folderGeneratorTab.Draw(this);               break;
-                case TabID.AssetOrganizer: DrawPlaceholder("Asset Organizer", "Phase 3"); break;
+                case TabID.AssetOrganizer: _assetOrganizerTab.Draw(this);                 break;
                 case TabID.FBXImporter: DrawPlaceholder("FBX Importer", "Phase 4");       break;
                 case TabID.Settings: DrawSettingsTab();                                   break;
             }
@@ -189,6 +193,31 @@ namespace GlyphLabs
                     GUILayout.FlexibleSpace();
                     if (GUILayout.Button("Reset to Default", GUILayout.Width(120)))
                         ToolSettings.FolderGen_TemplateSavePath = ToolInfo.DefaultTemplateSavePath;
+                }
+            }
+
+            DrawDivider();
+
+            EditorGUILayout.LabelField("Asset Organizer", EditorStyles.boldLabel);
+            EditorGUILayout.Space(4);
+
+            using (new EditorGUI.IndentLevelScope(1))
+            {
+                EditorGUILayout.LabelField(
+                    new GUIContent("Profile Save Path", "Where user-created profile maps are saved."),
+                    EditorStyles.label);
+
+                string current = ToolSettings.Organizer_ProfileSavePath;
+                string updated = EditorGUILayout.TextField(current);
+
+                if (updated != current)
+                    ToolSettings.Organizer_ProfileSavePath = updated;
+
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    GUILayout.FlexibleSpace();
+                    if (GUILayout.Button("Reset to Default", GUILayout.Width(120)))
+                        ToolSettings.Organizer_ProfileSavePath = ToolInfo.DefaultProfileSavePath;
                 }
             }
 

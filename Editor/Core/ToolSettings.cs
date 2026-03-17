@@ -48,7 +48,8 @@ namespace GlyphLabs
 
         private const string Organizer_EnabledKey = "Organizer.Enabled";
         private const string Organizer_ActiveProfileGuidKey = "Organizer.ActiveProfileGuid";
-
+        private const string Organizer_ProfileSavePathKey = "Organizer.ProfileSavePath";
+        
         public static bool Organizer_Enabled
         {
             get => EditorPrefs.GetBool(Key(Organizer_EnabledKey), true);
@@ -59,6 +60,12 @@ namespace GlyphLabs
         {
             get => EditorPrefs.GetString(Key(Organizer_ActiveProfileGuidKey), string.Empty);
             set => EditorPrefs.SetString(Key(Organizer_ActiveProfileGuidKey), value);
+        }
+
+        public static string Organizer_ProfileSavePath
+        {
+            get => EditorPrefs.GetString(Key(Organizer_ProfileSavePathKey), ToolInfo.DefaultProfileSavePath);
+            set => EditorPrefs.SetString(Key(Organizer_ProfileSavePathKey), value);
         }
 
         // ── FBX Importer ─────────────────────────────────────────────────────────
@@ -93,6 +100,7 @@ namespace GlyphLabs
             EditorPrefs.DeleteKey(Key(Organizer_ActiveProfileGuidKey));
             EditorPrefs.DeleteKey(Key(FBX_EnabledKey));
             EditorPrefs.DeleteKey(Key(FBX_ActiveProfileGuidKey));
+            EditorPrefs.DeleteKey(Key(Organizer_ProfileSavePathKey));
         }
     }
 }
