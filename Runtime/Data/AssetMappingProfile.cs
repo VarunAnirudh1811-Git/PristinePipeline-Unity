@@ -37,7 +37,7 @@ namespace GlyphLabs
     [CreateAssetMenu(
         fileName = "MappingProfile",
         menuName = "GlyphLabs/Mapping Profile")]
-    public class MappingProfile : ScriptableObject
+    public class AssetMappingProfile : ScriptableObject
     {
         public string profileName = "New Profile";
         public string description = "";

@@ -64,7 +64,7 @@ namespace GlyphLabs
 
         public static string Organizer_ProfileSavePath
         {
-            get => EditorPrefs.GetString(Key(Organizer_ProfileSavePathKey), ToolInfo.DefaultProfileSavePath);
+            get => EditorPrefs.GetString(Key(Organizer_ProfileSavePathKey), ToolInfo.DefaultAssetMappingProfileSavePath);
             set => EditorPrefs.SetString(Key(Organizer_ProfileSavePathKey), value);
         }
 
@@ -72,6 +72,7 @@ namespace GlyphLabs
 
         private const string FBX_EnabledKey           = "FBX.Enabled";
         private const string FBX_ActiveProfileGuidKey = "FBX.ActiveProfileGuid";
+        private const string FBX_ProfileSavePathKey   = "FBX.ProfileSavePath";
 
         public static bool FBX_Enabled
         {
@@ -83,6 +84,12 @@ namespace GlyphLabs
         {
             get => EditorPrefs.GetString(Key(FBX_ActiveProfileGuidKey), string.Empty);
             set => EditorPrefs.SetString(Key(FBX_ActiveProfileGuidKey), value);
+        }
+
+        public static string FBX_ProfileSavePath
+        {
+            get => EditorPrefs.GetString(Key(FBX_ProfileSavePathKey), ToolInfo.DefaultFBXImportProfileSavePath);
+            set => EditorPrefs.SetString(Key(FBX_ProfileSavePathKey), value);
         }
 
         // ── Utilities ────────────────────────────────────────────────────────────
@@ -98,9 +105,10 @@ namespace GlyphLabs
             EditorPrefs.DeleteKey(Key(FolderGen_TemplateSavePathKey));
             EditorPrefs.DeleteKey(Key(Organizer_EnabledKey));
             EditorPrefs.DeleteKey(Key(Organizer_ActiveProfileGuidKey));
+            EditorPrefs.DeleteKey(Key(Organizer_ProfileSavePathKey));
             EditorPrefs.DeleteKey(Key(FBX_EnabledKey));
             EditorPrefs.DeleteKey(Key(FBX_ActiveProfileGuidKey));
-            EditorPrefs.DeleteKey(Key(Organizer_ProfileSavePathKey));
+            EditorPrefs.DeleteKey(Key(FBX_ProfileSavePathKey));
         }
     }
 }

@@ -13,6 +13,7 @@ namespace GlyphLabs
     /// </summary>
     public class AssetOrganizerProcessor : AssetPostprocessor
     {
+        /// <summary>
         // OnPostprocessAllAssets is Unity's hook that fires after every import
         // batch completes. It receives four arrays:
         //   importedAssets   — assets imported for the first time or reimported
@@ -22,6 +23,7 @@ namespace GlyphLabs
         //
         // The didDomainReload parameter indicates whether a C# domain reload
         // occurred during this import batch — we ignore it here.
+        /// <summary>
         static void OnPostprocessAllAssets(
             string[] importedAssets,
             string[] deletedAssets,
@@ -32,7 +34,7 @@ namespace GlyphLabs
             // Bail immediately if organizer is disabled — no profile lookup needed
             if (!ToolSettings.Organizer_Enabled) return;
 
-            MappingProfile profile = ProfileRegistry.GetActiveOrganizerProfile();
+            AssetMappingProfile profile = ProfileRegistry.GetActiveOrganizerProfile();
 
             if (profile == null)
             {

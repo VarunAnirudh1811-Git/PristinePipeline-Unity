@@ -56,11 +56,11 @@ namespace GlyphLabs
         public static void            SetActiveFolderTemplate(FolderTemplate t) => Save(t, g => ToolSettings.FolderGen_ActiveTemplateGuid = g);
 
         // Asset Organizer 
-        public static MappingProfile  GetActiveOrganizerProfile()  => Load<MappingProfile>(ToolSettings.Organizer_ActiveProfileGuid);
-        public static void            SetActiveOrganizerProfile(MappingProfile p) => Save(p, g => ToolSettings.Organizer_ActiveProfileGuid = g);
+        public static AssetMappingProfile  GetActiveOrganizerProfile()  => Load<AssetMappingProfile>(ToolSettings.Organizer_ActiveProfileGuid);
+        public static void            SetActiveOrganizerProfile(AssetMappingProfile p) => Save(p, g => ToolSettings.Organizer_ActiveProfileGuid = g);
 
         // FBX Importer — placeholder, uncommented in Phase 4
-        // public static ImportProfile   GetActiveImportProfile()     => Load<ImportProfile>(ToolSettings.FBX_ActiveProfileGuid);
-        // public static void            SetActiveImportProfile(ImportProfile p) => Save(p, g => ToolSettings.FBX_ActiveProfileGuid = g);
+        public static FBXImportProfile   GetActiveImportProfile()     => Load<FBXImportProfile>(ToolSettings.FBX_ActiveProfileGuid);
+        public static void            SetActiveImportProfile(FBXImportProfile p) => Save(p, g => ToolSettings.FBX_ActiveProfileGuid = g);
     }
 }

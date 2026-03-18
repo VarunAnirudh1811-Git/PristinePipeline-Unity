@@ -20,14 +20,14 @@ namespace GlyphLabs
 
         // ── List mode state ──────────────────────────────────────────────────────
 
-        private List<MappingProfile> _profiles = new List<MappingProfile>();
+        private List<AssetMappingProfile> _profiles = new List<AssetMappingProfile>();
         private string[] _profileNames = new string[0];
         private int _selectedIndex = 0;
 
         // ── Create / Edit state ──────────────────────────────────────────────────
 
         // Inline editor state — no separate window
-        private MappingProfile _editTarget = null;
+        private AssetMappingProfile _editTarget = null;
         private bool _isEditMode = false;
         private string _editName = "";
         private string _editDescription = "";
@@ -150,7 +150,7 @@ namespace GlyphLabs
             DrawProfileManagementButtons(ActiveProfile, parentWindow);
         }
 
-        private void DrawProfileManagementButtons(MappingProfile selected, EditorWindow parentWindow)
+        private void DrawProfileManagementButtons(AssetMappingProfile selected, EditorWindow parentWindow)
         {
             float halfWidth = (EditorGUIUtility.currentViewWidth - 24f) / 2f;
 
@@ -185,7 +185,7 @@ namespace GlyphLabs
 
                 if (GUILayout.Button("Duplicate", GUILayout.Width(halfWidth)))
                 {
-                    MappingProfile clone = AssetOrganizerUtility.CloneProfile(selected);
+                    AssetMappingProfile clone = AssetOrganizerUtility.CloneProfile(selected);
                     RefreshProfiles();
                     int cloneIndex = _profiles.IndexOf(clone);
                     if (cloneIndex >= 0) _selectedIndex = cloneIndex;
@@ -318,7 +318,7 @@ namespace GlyphLabs
             BuildReorderableList();
         }
 
-        private void BeginEdit(MappingProfile profile)
+        private void BeginEdit(AssetMappingProfile profile)
         {
             _isEditMode = true;
             _editTarget = profile;
@@ -512,7 +512,7 @@ namespace GlyphLabs
             {
                 if (!ValidateBeforeSave()) return;
 
-                MappingProfile profile = BuildOrUpdateProfile();
+                AssetMappingProfile profile = BuildOrUpdateProfile();
                 AssetOrganizerUtility.SaveProfile(profile);
 
                 RefreshProfiles();
@@ -559,7 +559,7 @@ namespace GlyphLabs
             return true;
         }
 
-        private MappingProfile BuildOrUpdateProfile()
+        private AssetMappingProfile BuildOrUpdateProfile()
         {
             if (_isEditMode && _editTarget != null)
             {
@@ -569,7 +569,7 @@ namespace GlyphLabs
                 return _editTarget;
             }
 
-            var p = ScriptableObject.CreateInstance<MappingProfile>();
+            var p = ScriptableObject.CreateInstance<AssetMappingProfile>();
             p.profileName = _editName.Trim();
             p.description = _editDescription.Trim();
             p.SetRules(_editRules);
@@ -578,7 +578,7 @@ namespace GlyphLabs
 
         // ── Helpers ──────────────────────────────────────────────────────────────
 
-        private MappingProfile ActiveProfile =>
+        private AssetMappingProfile ActiveProfile =>
             (_profiles.Count > 0 && _selectedIndex < _profiles.Count)
                 ? _profiles[_selectedIndex]
                 : null;
@@ -588,7 +588,7 @@ namespace GlyphLabs
             _profiles = AssetOrganizerUtility.LoadAllProfiles();
             _profileNames = AssetOrganizerUtility.GetProfileDisplayNames(_profiles);
 
-            MappingProfile active = ProfileRegistry.GetActiveOrganizerProfile();
+            AssetMappingProfile active = ProfileRegistry.GetActiveOrganizerProfile();
             int idx = active != null ? _profiles.IndexOf(active) : -1;
             _selectedIndex = idx >= 0 ? idx : 0;
 

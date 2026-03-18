@@ -21,9 +21,9 @@ namespace GlyphLabs
         /// Loads all MappingProfile assets visible to the project from the
         /// user profile save path. Returns an empty list if none exist.
         /// </summary>
-        public static List<MappingProfile> LoadAllProfiles()
+        public static List<AssetMappingProfile> LoadAllProfiles()
         {
-            var profiles = new List<MappingProfile>();
+            var profiles = new List<AssetMappingProfile>();
             string userPath = ToolSettings.Organizer_ProfileSavePath;
 
             if (!string.IsNullOrWhiteSpace(userPath) && AssetDatabase.IsValidFolder(userPath))
@@ -32,14 +32,14 @@ namespace GlyphLabs
             return profiles;
         }
 
-        private static void LoadProfilesFromPath(string folderPath, List<MappingProfile> results)
+        private static void LoadProfilesFromPath(string folderPath, List<AssetMappingProfile> results)
         {
             string[] guids = AssetDatabase.FindAssets("t:MappingProfile", new[] { folderPath });
 
             foreach (string guid in guids)
             {
                 string path = AssetDatabase.GUIDToAssetPath(guid);
-                var profile = AssetDatabase.LoadAssetAtPath<MappingProfile>(path);
+                var profile = AssetDatabase.LoadAssetAtPath<AssetMappingProfile>(path);
 
                 if (profile != null && !results.Contains(profile))
                     results.Add(profile);
@@ -49,7 +49,7 @@ namespace GlyphLabs
         /// <summary>
         /// Returns display names for a list of profiles.
         /// </summary>
-        public static string[] GetProfileDisplayNames(List<MappingProfile> profiles)
+        public static string[] GetProfileDisplayNames(List<AssetMappingProfile> profiles)
         {
             return profiles.Select(p => p.profileName).ToArray();
         }
@@ -60,7 +60,7 @@ namespace GlyphLabs
         /// Saves a MappingProfile asset. Updates in place if it already exists,
         /// creates a new asset at the profile save path if it does not.
         /// </summary>
-        public static void SaveProfile(MappingProfile profile)
+        public static void SaveProfile(AssetMappingProfile profile)
         {
             if (profile == null) return;
 
@@ -98,7 +98,7 @@ namespace GlyphLabs
         /// <summary>
         /// Deletes a MappingProfile asset.
         /// </summary>
-        public static void DeleteProfile(MappingProfile profile)
+        public static void DeleteProfile(AssetMappingProfile profile)
         {
             if (profile == null) return;
 
@@ -115,7 +115,7 @@ namespace GlyphLabs
         /// <summary>
         /// Creates a duplicate of the given profile at the save path.
         /// </summary>
-        public static MappingProfile CloneProfile(MappingProfile source)
+        public static AssetMappingProfile CloneProfile(AssetMappingProfile source)
         {
             if (source == null) return null;
 
@@ -150,7 +150,7 @@ namespace GlyphLabs
         ///
         /// Returns null if no rule matches.
         /// </summary>
-        public static MappingRule FindMatchingRule(MappingProfile profile, string assetPath)
+        public static MappingRule FindMatchingRule(AssetMappingProfile profile, string assetPath)
         {
             if (profile == null) return null;
 
@@ -287,7 +287,7 @@ namespace GlyphLabs
         /// given profile. Used by the Manual Organize button in the tab UI.
         /// Returns the number of assets successfully moved.
         /// </summary>
-        public static int OrganizeAll(MappingProfile profile)
+        public static int OrganizeAll(AssetMappingProfile profile)
         {
             if (profile == null) return 0;
 

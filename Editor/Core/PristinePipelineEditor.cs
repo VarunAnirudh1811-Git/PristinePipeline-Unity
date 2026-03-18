@@ -35,6 +35,7 @@ namespace GlyphLabs
         private Vector2 _scrollPosition;
         private FolderGeneratorTab _folderGeneratorTab;
         private AssetOrganizerTab _assetOrganizerTab;
+        private FBXImporterTab _fbxImporterTab;
 
         // ── Entry point ──────────────────────────────────────────────────────────
 
@@ -56,6 +57,8 @@ namespace GlyphLabs
             _folderGeneratorTab.OnEnable();
             _assetOrganizerTab = new AssetOrganizerTab();
             _assetOrganizerTab.OnEnable();
+            _fbxImporterTab = new FBXImporterTab();
+            _fbxImporterTab.OnEnable();
         }
 
         private void OnDisable()
@@ -63,6 +66,7 @@ namespace GlyphLabs
             ToolSettings.ActiveTab = _activeTab;
             _folderGeneratorTab.OnDisable();
             _assetOrganizerTab.OnDisable();
+            _fbxImporterTab.OnDisable();
         }
 
         // ── GUI ──────────────────────────────────────────────────────────────────
@@ -86,7 +90,7 @@ namespace GlyphLabs
 
             using (new EditorGUILayout.HorizontalScope())
             {
-                GUIStyle titleStyle = new GUIStyle(EditorStyles.largeLabel)
+                GUIStyle titleStyle = new (EditorStyles.largeLabel)
                 {
                     fontSize = 16,
                     fontStyle = FontStyle.Bold,
@@ -96,7 +100,7 @@ namespace GlyphLabs
                 EditorGUILayout.LabelField(ToolInfo.ToolName, titleStyle);
                 GUILayout.FlexibleSpace();
 
-                GUIStyle versionStyle = new GUIStyle(EditorStyles.miniLabel)
+                GUIStyle versionStyle = new (EditorStyles.miniLabel)
                 {
                     alignment = TextAnchor.MiddleRight
                 };
@@ -141,7 +145,7 @@ namespace GlyphLabs
             {
                 case TabID.FolderGenerator: _folderGeneratorTab.Draw(this);               break;
                 case TabID.AssetOrganizer: _assetOrganizerTab.Draw(this);                 break;
-                case TabID.FBXImporter: DrawPlaceholder("FBX Importer", "Phase 4");       break;
+                case TabID.FBXImporter: _fbxImporterTab.Draw(this);                       break;
                 case TabID.Settings: DrawSettingsTab();                                   break;
             }
         }
@@ -179,7 +183,7 @@ namespace GlyphLabs
             using (new EditorGUI.IndentLevelScope(1))
             {
                 EditorGUILayout.LabelField(
-                    new GUIContent("Template Save Path", "Where user-created templates are saved."),
+                    new GUIContent("Folder Template Save Path", "Where user-created templates are saved."),
                     EditorStyles.label);
 
                 string current = ToolSettings.FolderGen_TemplateSavePath;
@@ -204,7 +208,7 @@ namespace GlyphLabs
             using (new EditorGUI.IndentLevelScope(1))
             {
                 EditorGUILayout.LabelField(
-                    new GUIContent("Profile Save Path", "Where user-created profile maps are saved."),
+                    new GUIContent("Asset Profile Map Save Path", "Where user-created profile maps are saved."),
                     EditorStyles.label);
 
                 string current = ToolSettings.Organizer_ProfileSavePath;
@@ -217,7 +221,32 @@ namespace GlyphLabs
                 {
                     GUILayout.FlexibleSpace();
                     if (GUILayout.Button("Reset to Default", GUILayout.Width(120)))
-                        ToolSettings.Organizer_ProfileSavePath = ToolInfo.DefaultProfileSavePath;
+                        ToolSettings.Organizer_ProfileSavePath = ToolInfo.DefaultAssetMappingProfileSavePath;
+                }
+            }
+
+            DrawDivider();
+
+            EditorGUILayout.LabelField("FBX Importer", EditorStyles.boldLabel);
+            EditorGUILayout.Space(4);
+
+            using (new EditorGUI.IndentLevelScope(1))
+            {
+                EditorGUILayout.LabelField(
+                    new GUIContent("FBX Import Profile Save Path", "Where user-created profile maps are saved."),
+                    EditorStyles.label);
+
+                string current = ToolSettings.FBX_ProfileSavePath;
+                string updated = EditorGUILayout.TextField(current);
+
+                if (updated != current)
+                    ToolSettings.FBX_ProfileSavePath = updated;
+
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    GUILayout.FlexibleSpace();
+                    if (GUILayout.Button("Reset to Default", GUILayout.Width(120)))
+                        ToolSettings.FBX_ProfileSavePath = ToolInfo.DefaultAssetMappingProfileSavePath;
                 }
             }
 
