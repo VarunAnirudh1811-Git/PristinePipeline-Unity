@@ -26,15 +26,18 @@ namespace GlyphLabs
             var profiles = new List<AssetMappingProfile>();
             string userPath = ToolSettings.Organizer_ProfileSavePath;
 
-            if (!string.IsNullOrWhiteSpace(userPath) && AssetDatabase.IsValidFolder(userPath))
+            if (!string.IsNullOrWhiteSpace(userPath))
+            {
+                EnsureAssetFolderExists(userPath);
                 LoadProfilesFromPath(userPath, profiles);
+            }
 
             return profiles;
         }
 
         private static void LoadProfilesFromPath(string folderPath, List<AssetMappingProfile> results)
         {
-            string[] guids = AssetDatabase.FindAssets("t:MappingProfile", new[] { folderPath });
+            string[] guids = AssetDatabase.FindAssets("t:AssetMappingProfile", new[] { folderPath });
 
             foreach (string guid in guids)
             {
@@ -134,6 +137,88 @@ namespace GlyphLabs
             Debug.Log(
                 $"{ToolInfo.LogPrefix} Cloned '{source.profileName}' → '{clone.profileName}'");
             return clone;
+        }
+
+        // ── Profile import / export ─────────────────────────────────────────────
+
+        /// <summary>
+        /// Exports a FolderTemplate to a JSON file via a save panel dialog.
+        /// </summary>
+        public static void ExportProfile(AssetMappingProfile profile)
+        {
+            if (profile == null) return;
+
+            string path = EditorUtility.SaveFilePanel(
+                "Export Asset Mapping Profile",
+                "",
+                profile.profileName,
+                "json");
+
+            if (string.IsNullOrEmpty(path)) return;
+
+            var data = new AssetMappingProfileData
+            {
+                profileName = profile.profileName,
+                description = profile.description,
+                rules = new List<MappingRule>(profile.Rules)
+            };
+
+            File.WriteAllText(path, JsonUtility.ToJson(data, prettyPrint: true));
+            Debug.Log($"{ToolInfo.LogPrefix} Exported Asset Mapping Profile to: {path}");
+        }
+
+        public static AssetMappingProfile ImportProfile()
+        {
+            string path = EditorUtility.OpenFilePanel("Import Asset Mapping Profile", "", "json");
+            if (string.IsNullOrEmpty(path)) return null;
+
+            try
+            {
+                string json = File.ReadAllText(path);
+                var data = JsonUtility.FromJson<AssetMappingProfileData>(json);
+
+                if (data == null || string.IsNullOrWhiteSpace(data.profileName))
+                {
+                    EditorUtility.DisplayDialog(
+                        "Import Failed",
+                        "The selected file is not a valid Asset Mapping Profile.",
+                        "OK");
+                    return null;
+                }
+
+                EnsureDirectoryExists(ToolSettings.Organizer_ProfileSavePath);
+
+                string assetPath = BuildUniqueAssetPath(
+                    ToolSettings.Organizer_ProfileSavePath, data.profileName);
+
+                var profile = ScriptableObject.CreateInstance<AssetMappingProfile>();
+                profile.profileName = Path.GetFileNameWithoutExtension(assetPath);
+                profile.description = data.description;
+                profile.SetRules(data.rules ?? new List<MappingRule>());
+
+                AssetDatabase.CreateAsset(profile, assetPath);
+                AssetDatabase.Refresh();
+
+                Debug.Log($"{ToolInfo.LogPrefix} Imported Asset Mapping Profile: {profile.profileName}");
+                return profile;
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"{ToolInfo.LogPrefix} Import failed: {ex.Message}");
+                EditorUtility.DisplayDialog(
+                    "Import Failed",
+                    "An error occurred while reading the file.",
+                    "OK");
+                return null;
+            }
+        }
+
+        [Serializable]
+        public class AssetMappingProfileData
+        {
+            public string profileName;
+            public string description;
+            public List<MappingRule> rules;
         }
 
         // ── Rule matching ────────────────────────────────────────────────────────
@@ -287,11 +372,14 @@ namespace GlyphLabs
         /// given profile. Used by the Manual Organize button in the tab UI.
         /// Returns the number of assets successfully moved.
         /// </summary>
-        public static int OrganizeAll(AssetMappingProfile profile)
+        public static int OrganizeAll(AssetMappingProfile profile, out int skipped)
         {
-            if (profile == null) return 0;
+            skipped = 0;
 
-            string[] allAssets = AssetDatabase.GetAllAssetPaths();
+            if (profile == null) return 0;
+            else skipped++;
+
+                string[] allAssets = AssetDatabase.GetAllAssetPaths();
             int moved = 0;
 
             AssetDatabase.StartAssetEditing();
@@ -317,7 +405,7 @@ namespace GlyphLabs
                 AssetDatabase.Refresh();
             }
 
-            Debug.Log($"{ToolInfo.LogPrefix} Organize complete — {moved} asset(s) moved.");
+            Debug.Log($"{ToolInfo.LogPrefix} Organize complete — {moved} asset(s) moved, {skipped} skipped.");
             return moved;
         }
 
@@ -345,7 +433,7 @@ namespace GlyphLabs
         // ── Private helpers ──────────────────────────────────────────────────────
 
         private static string ProjectRoot =>
-            Application.dataPath.Substring(0, Application.dataPath.Length - "/Assets".Length);
+            Application.dataPath[..^"/Assets".Length];
 
         private static string ToAbsolutePath(string unityAssetPath) =>
             Path.Combine(ProjectRoot, unityAssetPath).Replace("\\", "/");

@@ -246,7 +246,7 @@ namespace GlyphLabs
                 {
                     GUILayout.FlexibleSpace();
                     if (GUILayout.Button("Reset to Default", GUILayout.Width(120)))
-                        ToolSettings.FBX_ProfileSavePath = ToolInfo.DefaultAssetMappingProfileSavePath;
+                        ToolSettings.FBX_ProfileSavePath = ToolInfo.DefaultFBXImportProfileSavePath;
                 }
             }
 

@@ -25,7 +25,12 @@ namespace GlyphLabs
             string path = AssetDatabase.GUIDToAssetPath(guid);
 
             if (string.IsNullOrEmpty(path))
+            {
+                Debug.LogWarning(
+                    $"{ToolInfo.LogPrefix} A saved profile or template could not be found " +
+                    $"(GUID: {guid}). It may have been deleted or moved outside the editor.");
                 return null;
+            }
 
             return AssetDatabase.LoadAssetAtPath<T>(path);
         }

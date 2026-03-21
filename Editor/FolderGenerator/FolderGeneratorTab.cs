@@ -24,9 +24,9 @@ namespace GlyphLabs
         private string[] _templateNames = new string[0];
         private int _selectedIndex = 0;
 
-        private bool _useProjectRoot = false;
+        private bool _useProjectRoot = ToolSettings.FolderGen_UseProjectRoot;
+        private bool _addKeepFiles = ToolSettings.FolderGen_AddKeepFiles;
         private string _projectName = "";
-        private bool _addKeepFiles = true;
 
         // ── Tree view ────────────────────────────────────────────────────────────
 
@@ -125,7 +125,7 @@ namespace GlyphLabs
 
         private void DrawTemplateManagementButtons(FolderTemplate selected, EditorWindow parentWindow)
         {
-            float halfWidth = (EditorGUIUtility.currentViewWidth - 24f) / 2f;
+            float halfWidth = (EditorGUIUtility.currentViewWidth - 9f) / 2f;
 
             using (new EditorGUILayout.HorizontalScope())
             {
@@ -249,9 +249,12 @@ namespace GlyphLabs
             // Reload only when data changed — preserves expand/collapse state
             if (ActiveTemplate != _lastTreeTemplate || currentRoot != _lastTreeRootPath)
             {
-                _treeView.Reload(ActiveTemplate, currentRoot);
-                _lastTreeTemplate = ActiveTemplate;
-                _lastTreeRootPath = currentRoot;
+                if (!EditorGUIUtility.editingTextField)
+                {
+                    _treeView.Reload(ActiveTemplate, currentRoot);
+                    _lastTreeTemplate = ActiveTemplate;
+                    _lastTreeRootPath = currentRoot;
+                }
             }
 
             // Reserve explicit rect for the tree — TreeView<int> does not use
@@ -269,21 +272,22 @@ namespace GlyphLabs
             EditorGUILayout.LabelField("Options", EditorStyles.boldLabel);
             EditorGUILayout.Space(2);
 
-            _useProjectRoot = EditorGUILayout.Toggle(
+            bool newUseProjectRoot = EditorGUILayout.Toggle(
                 new GUIContent("Use Project Root Folder",
                     "Nest all folders under Assets/<ProjectName> instead of directly under Assets."),
                 _useProjectRoot);
+            if (newUseProjectRoot != _useProjectRoot)
+            {
+                _useProjectRoot = newUseProjectRoot;
+                ToolSettings.FolderGen_UseProjectRoot = _useProjectRoot;
+                InvalidateTreeCache();
+            }
 
             if (_useProjectRoot)
             {
-                EditorGUI.BeginChangeCheck();
-
                 _projectName = EditorGUILayout.TextField(
                     new GUIContent("Project Name", "The subfolder created under Assets/."),
                     _projectName);
-
-                if (EditorGUI.EndChangeCheck())
-                    InvalidateTreeCache();
 
                 if (string.IsNullOrWhiteSpace(_projectName))
                     EditorGUILayout.HelpBox(
@@ -293,10 +297,15 @@ namespace GlyphLabs
 
             EditorGUILayout.Space(2);
 
-            _addKeepFiles = EditorGUILayout.Toggle(
+            bool newAddKeepFiles = EditorGUILayout.Toggle(
                 new GUIContent("Add .keep in Empty Folders",
                     "Places a .keep file in empty folders so they are tracked by version control."),
                 _addKeepFiles);
+            if (newAddKeepFiles != _addKeepFiles)
+            {
+                _addKeepFiles = newAddKeepFiles;
+                ToolSettings.FolderGen_AddKeepFiles = _addKeepFiles;
+            }
         }
 
         // ── Generate button ──────────────────────────────────────────────────────

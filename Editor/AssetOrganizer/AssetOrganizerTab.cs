@@ -20,7 +20,7 @@ namespace GlyphLabs
 
         // ── List mode state ──────────────────────────────────────────────────────
 
-        private List<AssetMappingProfile> _profiles = new List<AssetMappingProfile>();
+        private List<AssetMappingProfile> _profiles = new();
         private string[] _profileNames = new string[0];
         private int _selectedIndex = 0;
 
@@ -31,7 +31,7 @@ namespace GlyphLabs
         private bool _isEditMode = false;
         private string _editName = "";
         private string _editDescription = "";
-        private List<MappingRule> _editRules = new List<MappingRule>();
+        private List<MappingRule> _editRules = new();
         private ReorderableList _reorderableList;
         private bool _isDirty = false;
 
@@ -152,7 +152,7 @@ namespace GlyphLabs
 
         private void DrawProfileManagementButtons(AssetMappingProfile selected, EditorWindow parentWindow)
         {
-            float halfWidth = (EditorGUIUtility.currentViewWidth - 24f) / 2f;
+            float halfWidth = (EditorGUIUtility.currentViewWidth - 9f) / 2f;
 
             // Row 1 — New / Edit
             using (new EditorGUILayout.HorizontalScope())
@@ -207,6 +207,30 @@ namespace GlyphLabs
                 }
 
                 GUI.backgroundColor = prev;
+                GUI.enabled = true;
+            }
+
+            EditorGUILayout.Space(2);
+
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                if (GUILayout.Button("Import JSON", GUILayout.Width(halfWidth)))
+                {
+                    AssetMappingProfile imported = AssetOrganizerUtility.ImportProfile();
+                    if (imported != null)
+                    {
+                        RefreshProfiles();
+                        int cloneIndex = _profiles.IndexOf(imported);
+                        if (cloneIndex >= 0) _selectedIndex = cloneIndex;
+                    }
+                }
+
+                GUI.enabled = selected != null;
+
+                if (GUILayout.Button("Export JSON", GUILayout.Width(halfWidth)))
+                    AssetOrganizerUtility.ExportProfile(selected);
+
+
                 GUI.enabled = true;
             }
 
@@ -292,10 +316,10 @@ namespace GlyphLabs
                     $"This will move assets across your project using the '{ActiveProfile.profileName}' profile rules.\n\nThis cannot be undone. Continue?",
                     "Organize", "Cancel"))
                 {
-                    int moved = AssetOrganizerUtility.OrganizeAll(ActiveProfile);
+                    int moved = AssetOrganizerUtility.OrganizeAll(ActiveProfile, out int skipped);
                     EditorUtility.DisplayDialog(
                         "Organize Complete",
-                        $"{moved} asset(s) moved.",
+                        $"{moved} asset(s) moved, {skipped} skipped.",
                         "OK");
                 }
             }
@@ -331,7 +355,7 @@ namespace GlyphLabs
 
         private void DrawCreateEditMode(EditorWindow parentWindow)
         {
-            DrawCreateEditHeader(parentWindow);
+            if (!DrawCreateEditHeader(parentWindow)) return;
             PristinePipelineWindow.DrawDivider();
             DrawCreateEditFields();
             EditorGUILayout.Space(6);
@@ -342,7 +366,7 @@ namespace GlyphLabs
             EditorGUILayout.Space(8);
         }
 
-        private void DrawCreateEditHeader(EditorWindow parentWindow)
+        private bool DrawCreateEditHeader(EditorWindow parentWindow)
         {
             EditorGUILayout.Space(8);
 
@@ -357,15 +381,15 @@ namespace GlyphLabs
                             "You have unsaved changes. Go back and discard them?",
                             "Discard", "Keep Editing");
 
-                        if (!discard) return;
+                        if (!discard) return false;
                     }
 
                     _mode = Mode.List;
                     parentWindow.Repaint();
-                    return;
+                    return false;
                 }
 
-                GUIStyle heading = new GUIStyle(EditorStyles.boldLabel) { fontSize = 13 };
+                GUIStyle heading = new(EditorStyles.boldLabel) { fontSize = 13 };
                 string label = _isEditMode
                     ? $"Edit  —  {_editTarget.profileName}"
                     : "New Profile";
@@ -374,6 +398,7 @@ namespace GlyphLabs
             }
 
             EditorGUILayout.Space(6);
+            return true;
         }
 
         private void DrawCreateEditFields()
@@ -415,94 +440,95 @@ namespace GlyphLabs
                 draggable: true,
                 displayHeader: true,
                 displayAddButton: true,
-                displayRemoveButton: true);
-
-            _reorderableList.drawHeaderCallback = rect =>
+                displayRemoveButton: true)
             {
-                float w = rect.width;
-                float x = rect.x;
-                float ext = 60f;
-                float pat = 110f;
-                float del = 40f;
-                float dst = w - ext - pat - del - 12f;
-
-                EditorGUI.LabelField(new Rect(x, rect.y, ext, rect.height),
-                    "Ext", EditorStyles.miniBoldLabel);
-                EditorGUI.LabelField(new Rect(x + ext + 4, rect.y, pat, rect.height),
-                    "Name pattern", EditorStyles.miniBoldLabel);
-                EditorGUI.LabelField(new Rect(x + ext + pat + 8, rect.y, dst, rect.height),
-                    "Destination", EditorStyles.miniBoldLabel);
-            };
-
-            _reorderableList.drawElementCallback = (rect, index, isActive, isFocused) =>
-            {
-                if (index < 0 || index >= _editRules.Count) return;
-
-                MappingRule rule = _editRules[index];
-                rect.y += 2;
-                rect.height = EditorGUIUtility.singleLineHeight;
-
-                float w = rect.width;
-                float ext = 60f;
-                float pat = 110f;
-                float del = 40f;
-                float dst = w - ext - pat - del - 12f;
-
-                EditorGUI.BeginChangeCheck();
-
-                // Extension field — strip leading dot if user types one
-                string rawExt = EditorGUI.TextField(
-                    new Rect(rect.x, rect.y, ext, rect.height),
-                    rule.extension);
-                rule.extension = rawExt.TrimStart('.').ToLowerInvariant();
-
-                // Name pattern field
-                rule.namePattern = EditorGUI.TextField(
-                    new Rect(rect.x + ext + 4, rect.y, pat, rect.height),
-                    rule.namePattern);
-
-                // Destination folder field
-                rule.destinationFolder = EditorGUI.TextField(
-                    new Rect(rect.x + ext + pat + 8, rect.y, dst, rect.height),
-                    rule.destinationFolder);
-
-                if (EditorGUI.EndChangeCheck())
-                    _isDirty = true;
-
-                // Validation messages below the row
-                var messages = AssetOrganizerUtility.ValidateRule(rule);
-                float warningY = rect.y + EditorGUIUtility.singleLineHeight + 2;
-
-                foreach (string msg in messages)
+                drawHeaderCallback = rect =>
                 {
-                    EditorGUI.HelpBox(
-                        new Rect(rect.x, warningY, rect.width,
-                            EditorGUIUtility.singleLineHeight + 4),
-                        msg, MessageType.Warning);
-                    warningY += EditorGUIUtility.singleLineHeight + 6;
-                }
-            };
+                    float w = rect.width;
+                    float x = rect.x;
+                    float ext = 60f;
+                    float pat = 110f;
+                    float del = 40f;
+                    float dst = w - ext - pat - del - 12f;
 
-            _reorderableList.elementHeightCallback = index =>
-            {
-                float height = EditorGUIUtility.singleLineHeight + 4;
-                if (index < 0 || index >= _editRules.Count) return height;
+                    EditorGUI.LabelField(new Rect(x, rect.y, ext, rect.height),
+                        "Ext", EditorStyles.miniBoldLabel);
+                    EditorGUI.LabelField(new Rect(x + ext + 4, rect.y, pat, rect.height),
+                        "Name pattern", EditorStyles.miniBoldLabel);
+                    EditorGUI.LabelField(new Rect(x + ext + pat + 8, rect.y, dst, rect.height),
+                        "Destination", EditorStyles.miniBoldLabel);
+                },
 
-                var messages = AssetOrganizerUtility.ValidateRule(_editRules[index]);
-                height += messages.Count * (EditorGUIUtility.singleLineHeight + 6);
-                return height;
-            };
+                drawElementCallback = (rect, index, isActive, isFocused) =>
+                    {
+                        if (index < 0 || index >= _editRules.Count) return;
 
-            _reorderableList.onAddCallback = list =>
-            {
-                _editRules.Add(new MappingRule());
-                _isDirty = true;
-            };
+                        MappingRule rule = _editRules[index];
+                        rect.y += 2;
+                        rect.height = EditorGUIUtility.singleLineHeight;
 
-            _reorderableList.onRemoveCallback = list =>
-            {
-                _editRules.RemoveAt(list.index);
-                _isDirty = true;
+                        float w = rect.width;
+                        float ext = 60f;
+                        float pat = 110f;
+                        float del = 40f;
+                        float dst = w - ext - pat - del - 12f;
+
+                        EditorGUI.BeginChangeCheck();
+
+                        // Extension field — strip leading dot if user types one
+                        string rawExt = EditorGUI.TextField(
+                            new Rect(rect.x, rect.y, ext, rect.height),
+                            rule.extension);
+                        rule.extension = rawExt.TrimStart('.').ToLowerInvariant();
+
+                        // Name pattern field
+                        rule.namePattern = EditorGUI.TextField(
+                            new Rect(rect.x + ext + 4, rect.y, pat, rect.height),
+                            rule.namePattern);
+
+                        // Destination folder field
+                        rule.destinationFolder = EditorGUI.TextField(
+                            new Rect(rect.x + ext + pat + 8, rect.y, dst, rect.height),
+                            rule.destinationFolder);
+
+                        if (EditorGUI.EndChangeCheck())
+                            _isDirty = true;
+
+                        // Validation messages below the row
+                        var messages = AssetOrganizerUtility.ValidateRule(rule);
+                        float warningY = rect.y + EditorGUIUtility.singleLineHeight + 2;
+
+                        foreach (string msg in messages)
+                        {
+                            EditorGUI.HelpBox(
+                                new Rect(rect.x, warningY, rect.width,
+                                    EditorGUIUtility.singleLineHeight + 4),
+                                msg, MessageType.Warning);
+                            warningY += EditorGUIUtility.singleLineHeight + 6;
+                        }
+                    },
+
+                elementHeightCallback = index =>
+                    {
+                        float height = EditorGUIUtility.singleLineHeight + 4;
+                        if (index < 0 || index >= _editRules.Count) return height;
+
+                        var messages = AssetOrganizerUtility.ValidateRule(_editRules[index]);
+                        height += messages.Count * (EditorGUIUtility.singleLineHeight + 6);
+                        return height;
+                    },
+
+                onAddCallback = list =>
+                    {
+                        _editRules.Add(new MappingRule());
+                        _isDirty = true;
+                    },
+
+                onRemoveCallback = list =>
+                    {
+                        _editRules.RemoveAt(list.index);
+                        _isDirty = true;
+                    }
             };
         }
 

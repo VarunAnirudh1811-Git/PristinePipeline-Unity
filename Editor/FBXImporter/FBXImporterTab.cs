@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.IO;
+using System.Net;
 using UnityEditor;
 using UnityEditorInternal;
 using UnityEngine;
@@ -20,7 +21,7 @@ namespace GlyphLabs
 
         // ── List mode state ──────────────────────────────────────────────────────
 
-        private List<FBXImportProfile> _profiles = new List<FBXImportProfile>();
+        private List<FBXImportProfile> _profiles = new();
         private string[] _profileNames = new string[0];
         private int _selectedIndex = 0;
 
@@ -31,9 +32,9 @@ namespace GlyphLabs
         private string _editName = "";
         private string _editDescription = "";
         private bool _editEnforce = false;
-        private List<string> _editPrefixes = new List<string>();
+        private List<string> _editPrefixes = new();
         private FBXImportPreset _editDefaultPreset;
-        private List<FBXImportRule> _editRules = new List<FBXImportRule>();
+        private List<FBXImportRule> _editRules = new();
         private ReorderableList _rulesReorderable;
         private ReorderableList _prefixReorderable;
         private bool _isDirty = false;
@@ -152,7 +153,7 @@ namespace GlyphLabs
         private void DrawProfileManagementButtons(
             FBXImportProfile selected, EditorWindow parentWindow)
         {
-            float halfWidth = (EditorGUIUtility.currentViewWidth - 24f) / 2f;
+            float halfWidth = (EditorGUIUtility.currentViewWidth - 9f) / 2f;
 
             // Row 1 — New / Edit
             using (new EditorGUILayout.HorizontalScope())
@@ -207,6 +208,29 @@ namespace GlyphLabs
                 }
 
                 GUI.backgroundColor = prev;
+                GUI.enabled = true;
+            }
+
+            EditorGUILayout.Space(2);
+
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                if (GUILayout.Button("Import JSON", GUILayout.Width(halfWidth)))
+                {
+                    FBXImportProfile imported = FBXImporterUtility.ImportProfile();
+                    if (imported != null)
+                    {
+                        RefreshProfiles();
+                        int idx = _profiles.IndexOf(imported);
+                        if (idx >= 0) _selectedIndex = idx;
+                    }
+                }
+
+                GUI.enabled = selected != null;
+
+                if (GUILayout.Button("Export JSON", GUILayout.Width(halfWidth)))
+                    FBXImporterUtility.ExportProfile(selected);
+
                 GUI.enabled = true;
             }
 
@@ -348,7 +372,7 @@ namespace GlyphLabs
 
         private void DrawCreateEditMode(EditorWindow parentWindow)
         {
-            DrawCreateEditHeader(parentWindow);
+            if (!DrawCreateEditHeader(parentWindow)) return;
             PristinePipelineWindow.DrawDivider();
             DrawNameAndDescription();
             PristinePipelineWindow.DrawDivider();
@@ -363,7 +387,7 @@ namespace GlyphLabs
             EditorGUILayout.Space(8);
         }
 
-        private void DrawCreateEditHeader(EditorWindow parentWindow)
+        private bool DrawCreateEditHeader(EditorWindow parentWindow)
         {
             EditorGUILayout.Space(8);
 
@@ -378,21 +402,22 @@ namespace GlyphLabs
                             "You have unsaved changes. Go back and discard them?",
                             "Discard", "Keep Editing");
 
-                        if (!discard) return;
+                        if (!discard) return false;
                     }
 
                     _mode = Mode.List;
                     parentWindow.Repaint();
-                    return;
+                    return false;
                 }
 
-                GUIStyle heading = new GUIStyle(EditorStyles.boldLabel) { fontSize = 13 };
+                GUIStyle heading = new(EditorStyles.boldLabel) { fontSize = 13 };
                 EditorGUILayout.LabelField(
                     _isEditMode ? $"Edit  —  {_editTarget.profileName}" : "New Profile",
                     heading);
             }
 
             EditorGUILayout.Space(6);
+            return true;
         }
 
         private void DrawNameAndDescription()
@@ -562,20 +587,21 @@ namespace GlyphLabs
                 draggable: true,
                 displayHeader: false,
                 displayAddButton: true,
-                displayRemoveButton: true);
-
-            _prefixReorderable.drawElementCallback = (rect, index, isActive, isFocused) =>
+                displayRemoveButton: true)
             {
-                if (index < 0 || index >= _editPrefixes.Count) return;
-                rect.y += 2;
-                rect.height = EditorGUIUtility.singleLineHeight;
+                drawElementCallback = (rect, index, isActive, isFocused) =>
+                {
+                    if (index < 0 || index >= _editPrefixes.Count) return;
+                    rect.y += 2;
+                    rect.height = EditorGUIUtility.singleLineHeight;
 
-                EditorGUI.BeginChangeCheck();
-                _editPrefixes[index] = EditorGUI.TextField(rect, _editPrefixes[index]);
-                if (EditorGUI.EndChangeCheck()) _isDirty = true;
+                    EditorGUI.BeginChangeCheck();
+                    _editPrefixes[index] = EditorGUI.TextField(rect, _editPrefixes[index]);
+                    if (EditorGUI.EndChangeCheck()) _isDirty = true;
+                },
+
+                onAddCallback = _ => { _editPrefixes.Add(""); _isDirty = true; }
             };
-
-            _prefixReorderable.onAddCallback = _ => { _editPrefixes.Add(""); _isDirty = true; };
             _prefixReorderable.onRemoveCallback = _ =>
             {
                 _editPrefixes.RemoveAt(_prefixReorderable.index);
@@ -590,127 +616,128 @@ namespace GlyphLabs
                 draggable: true,
                 displayHeader: true,
                 displayAddButton: true,
-                displayRemoveButton: true);
-
-            _rulesReorderable.drawHeaderCallback = rect =>
-                EditorGUI.LabelField(rect, "Pattern → Preset Settings",
-                    EditorStyles.miniBoldLabel);
-
-            _rulesReorderable.drawElementCallback = (rect, index, isActive, isFocused) =>
+                displayRemoveButton: true)
             {
-                if (index < 0 || index >= _editRules.Count) return;
+                drawHeaderCallback = rect =>
+                    EditorGUI.LabelField(rect, "Pattern → Preset Settings",
+                        EditorStyles.miniBoldLabel),
 
-                FBXImportRule rule = _editRules[index];
-                float y = rect.y + 2f;
-                float lineH = EditorGUIUtility.singleLineHeight;
-                float spacing = lineH + 2f;
+                drawElementCallback = (rect, index, isActive, isFocused) =>
+                    {
+                        if (index < 0 || index >= _editRules.Count) return;
 
-                // Name pattern + note on first line
-                EditorGUI.BeginChangeCheck();
+                        FBXImportRule rule = _editRules[index];
+                        float y = rect.y + 2f;
+                        float lineH = EditorGUIUtility.singleLineHeight;
+                        float spacing = lineH + 2f;
 
-                EditorGUI.LabelField(
-                    new Rect(rect.x, y, 90f, lineH), "Pattern");
-                rule.namePattern = EditorGUI.TextField(
-                    new Rect(rect.x + 92f, y, rect.width * 0.4f, lineH),
-                    rule.namePattern);
+                        // Name pattern + note on first line
+                        EditorGUI.BeginChangeCheck();
 
-                EditorGUI.LabelField(
-                    new Rect(rect.x + rect.width * 0.4f + 96f, y, 36f, lineH), "Note");
-                rule.note = EditorGUI.TextField(
-                    new Rect(rect.x + rect.width * 0.4f + 134f, y,
-                        rect.width - rect.width * 0.4f - 134f, lineH),
-                    rule.note);
+                        EditorGUI.LabelField(
+                            new Rect(rect.x, y, 90f, lineH), "Pattern");
+                        rule.namePattern = EditorGUI.TextField(
+                            new Rect(rect.x + 92f, y, rect.width * 0.4f, lineH),
+                            rule.namePattern);
 
-                y += spacing;
+                        EditorGUI.LabelField(
+                            new Rect(rect.x + rect.width * 0.4f + 96f, y, 36f, lineH), "Note");
+                        rule.note = EditorGUI.TextField(
+                            new Rect(rect.x + rect.width * 0.4f + 134f, y,
+                                rect.width - rect.width * 0.4f - 134f, lineH),
+                            rule.note);
 
-                // Preset name
-                EditorGUI.LabelField(new Rect(rect.x, y, 90f, lineH), "Preset Name");
-                rule.preset.presetName = EditorGUI.TextField(
-                    new Rect(rect.x + 92f, y, rect.width - 94f, lineH),
-                    rule.preset.presetName);
+                        y += spacing;
 
-                y += spacing;
+                        // Preset name
+                        EditorGUI.LabelField(new Rect(rect.x, y, 90f, lineH), "Preset Name");
+                        rule.preset.presetName = EditorGUI.TextField(
+                            new Rect(rect.x + 92f, y, rect.width - 94f, lineH),
+                            rule.preset.presetName);
 
-                // Scale + compression on one row
-                EditorGUI.LabelField(new Rect(rect.x, y, 80f, lineH), "Scale");
-                rule.preset.scaleFactor = EditorGUI.FloatField(
-                    new Rect(rect.x + 82f, y, 50f, lineH),
-                    rule.preset.scaleFactor);
+                        y += spacing;
 
-                EditorGUI.LabelField(new Rect(rect.x + 144f, y, 90f, lineH), "Compression");
-                rule.preset.meshCompression =
-                    (UnityEditor.ModelImporterMeshCompression)EditorGUI.EnumPopup(
-                        new Rect(rect.x + 236f, y, rect.width - 238f, lineH),
-                        rule.preset.meshCompression);
+                        // Scale + compression on one row
+                        EditorGUI.LabelField(new Rect(rect.x, y, 80f, lineH), "Scale");
+                        rule.preset.scaleFactor = EditorGUI.FloatField(
+                            new Rect(rect.x + 82f, y, 50f, lineH),
+                            rule.preset.scaleFactor);
 
-                y += spacing;
+                        EditorGUI.LabelField(new Rect(rect.x + 144f, y, 90f, lineH), "Compression");
+                        rule.preset.meshCompression =
+                            (UnityEditor.ModelImporterMeshCompression)EditorGUI.EnumPopup(
+                                new Rect(rect.x + 236f, y, rect.width - 238f, lineH),
+                                rule.preset.meshCompression);
 
-                // Toggle row 1
-                rule.preset.readWriteEnabled = EditorGUI.ToggleLeft(
-                    new Rect(rect.x, y, 130f, lineH),
-                    "Read/Write", rule.preset.readWriteEnabled);
-                rule.preset.optimizeMesh = EditorGUI.ToggleLeft(
-                    new Rect(rect.x + 134f, y, 130f, lineH),
-                    "Optimize Mesh", rule.preset.optimizeMesh);
-                rule.preset.generateLightmapUVs = EditorGUI.ToggleLeft(
-                    new Rect(rect.x + 268f, y, rect.width - 270f, lineH),
-                    "Lightmap UVs", rule.preset.generateLightmapUVs);
+                        y += spacing;
 
-                y += spacing;
+                        // Toggle row 1
+                        rule.preset.readWriteEnabled = EditorGUI.ToggleLeft(
+                            new Rect(rect.x, y, 130f, lineH),
+                            "Read/Write", rule.preset.readWriteEnabled);
+                        rule.preset.optimizeMesh = EditorGUI.ToggleLeft(
+                            new Rect(rect.x + 134f, y, 130f, lineH),
+                            "Optimize Mesh", rule.preset.optimizeMesh);
+                        rule.preset.generateLightmapUVs = EditorGUI.ToggleLeft(
+                            new Rect(rect.x + 268f, y, rect.width - 270f, lineH),
+                            "Lightmap UVs", rule.preset.generateLightmapUVs);
 
-                // Normals + Tangents
-                EditorGUI.LabelField(new Rect(rect.x, y, 60f, lineH), "Normals");
-                rule.preset.normals = (UnityEditor.ModelImporterNormals)EditorGUI.EnumPopup(
-                    new Rect(rect.x + 62f, y, 130f, lineH),
-                    rule.preset.normals);
+                        y += spacing;
 
-                EditorGUI.LabelField(new Rect(rect.x + 202f, y, 60f, lineH), "Tangents");
-                rule.preset.tangents = (UnityEditor.ModelImporterTangents)EditorGUI.EnumPopup(
-                    new Rect(rect.x + 264f, y, rect.width - 266f, lineH),
-                    rule.preset.tangents);
+                        // Normals + Tangents
+                        EditorGUI.LabelField(new Rect(rect.x, y, 60f, lineH), "Normals");
+                        rule.preset.normals = (UnityEditor.ModelImporterNormals)EditorGUI.EnumPopup(
+                            new Rect(rect.x + 62f, y, 130f, lineH),
+                            rule.preset.normals);
 
-                y += spacing;
+                        EditorGUI.LabelField(new Rect(rect.x + 202f, y, 60f, lineH), "Tangents");
+                        rule.preset.tangents = (UnityEditor.ModelImporterTangents)EditorGUI.EnumPopup(
+                            new Rect(rect.x + 264f, y, rect.width - 266f, lineH),
+                            rule.preset.tangents);
 
-                // Swap UVs
-                rule.preset.swapUVs = EditorGUI.ToggleLeft(
-                    new Rect(rect.x, y, 130f, lineH),
-                    "Swap UVs", rule.preset.swapUVs);
+                        y += spacing;
 
-                if (EditorGUI.EndChangeCheck()) _isDirty = true;
+                        // Swap UVs
+                        rule.preset.swapUVs = EditorGUI.ToggleLeft(
+                            new Rect(rect.x, y, 130f, lineH),
+                            "Swap UVs", rule.preset.swapUVs);
 
-                // Validation
-                var messages = FBXImporterUtility.ValidateRule(rule);
-                y += spacing;
-                foreach (string msg in messages)
-                {
-                    EditorGUI.HelpBox(
-                        new Rect(rect.x, y, rect.width, lineH + 4), msg, MessageType.Warning);
-                    y += lineH + 6f;
-                }
-            };
+                        if (EditorGUI.EndChangeCheck()) _isDirty = true;
 
-            _rulesReorderable.elementHeightCallback = index =>
-            {
-                // pattern row + preset name + scale/compression + toggles + normals/tangents
-                // + swap uvs = 6 rows
-                float height = (EditorGUIUtility.singleLineHeight + 2f) * 6f + 8f;
+                        // Validation
+                        var messages = FBXImporterUtility.ValidateRule(rule);
+                        y += spacing;
+                        foreach (string msg in messages)
+                        {
+                            EditorGUI.HelpBox(
+                                new Rect(rect.x, y, rect.width, lineH + 4), msg, MessageType.Warning);
+                            y += lineH + 6f;
+                        }
+                    },
 
-                if (index >= 0 && index < _editRules.Count)
-                {
-                    var messages = FBXImporterUtility.ValidateRule(_editRules[index]);
-                    height += messages.Count * (EditorGUIUtility.singleLineHeight + 6f);
-                }
+                elementHeightCallback = index =>
+                    {
+                        // pattern row + preset name + scale/compression + toggles + normals/tangents
+                        // + swap uvs = 6 rows
+                        float height = (EditorGUIUtility.singleLineHeight + 2f) * 7f + 8f;
 
-                return height;
-            };
+                        if (index >= 0 && index < _editRules.Count)
+                        {
+                            var messages = FBXImporterUtility.ValidateRule(_editRules[index]);
+                            height += messages.Count * (EditorGUIUtility.singleLineHeight + 6f);
+                        }
 
-            _rulesReorderable.onAddCallback = _ =>
-            {
-                _editRules.Add(new FBXImportRule
-                {
-                    preset = new FBXImportPreset { presetName = "New Preset" }
-                });
-                _isDirty = true;
+                        return height;
+                    },
+
+                onAddCallback = _ =>
+                    {
+                        _editRules.Add(new FBXImportRule
+                        {
+                            preset = new FBXImportPreset { presetName = "New Preset" }
+                        });
+                        _isDirty = true;
+                    }
             };
 
             _rulesReorderable.onRemoveCallback = _ =>

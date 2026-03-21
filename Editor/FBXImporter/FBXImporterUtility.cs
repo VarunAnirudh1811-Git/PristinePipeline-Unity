@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using UnityEditor;
@@ -25,8 +26,11 @@ namespace GlyphLabs
             var profiles = new List<FBXImportProfile>();
             string userPath = ToolSettings.FBX_ProfileSavePath;
 
-            if (!string.IsNullOrWhiteSpace(userPath) && AssetDatabase.IsValidFolder(userPath))
+            if (!string.IsNullOrWhiteSpace(userPath))
+            {
+                EnsureAssetFolderExists(userPath);
                 LoadProfilesFromPath(userPath, profiles);
+            }
 
             return profiles;
         }
@@ -112,6 +116,97 @@ namespace GlyphLabs
                 Debug.Log(
                     $"{ToolInfo.LogPrefix} Deleted FBX Import Profile: {profile.profileName}");
             }
+        }
+
+        // ── Profile import / export ─────────────────────────────────────────────
+
+        /// <summary>
+        /// Exports a FolderTemplate to a JSON file via a save panel dialog.
+        /// </summary>
+        public static void ExportProfile(FBXImportProfile profile)
+        {
+            if (profile == null) return;
+
+            string path = EditorUtility.SaveFilePanel(
+                "Export FBX Import Profile",
+                "",
+                profile.profileName,
+                "json");
+
+            if (string.IsNullOrEmpty(path)) return;
+
+            var data = new FBXImportProfileData
+            {
+                profileName = profile.profileName,
+                description = profile.description,
+                enforceNamingConvention = profile.enforceNamingConvention,
+                validPrefixes = new List<string>(profile.validPrefixes),
+                defaultPreset = profile.defaultPreset,
+                rules = new List<FBXImportRule>(profile.Rules)
+            };
+
+            File.WriteAllText(path, JsonUtility.ToJson(data, prettyPrint: true));
+            Debug.Log($"{ToolInfo.LogPrefix} Exported FBX Import Profile to: {path}");
+        }
+
+        public static FBXImportProfile ImportProfile()
+        {
+            string path = EditorUtility.OpenFilePanel("Import FBX Import Profile", "", "json");
+            if (string.IsNullOrEmpty(path)) return null;
+
+            try
+            {
+                string json = File.ReadAllText(path);
+                var data = JsonUtility.FromJson<FBXImportProfileData>(json);
+
+                if (data == null || string.IsNullOrWhiteSpace(data.profileName))
+                {
+                    EditorUtility.DisplayDialog(
+                        "Import Failed",
+                        "The selected file is not a valid FBX Import Profile.",
+                        "OK");
+                    return null;
+                }
+
+                EnsureDirectoryExists(ToolSettings.FBX_ProfileSavePath);
+
+                string assetPath = BuildUniqueAssetPath(
+                    ToolSettings.FBX_ProfileSavePath, data.profileName);
+
+                var profile = ScriptableObject.CreateInstance<FBXImportProfile>();
+                profile.profileName = Path.GetFileNameWithoutExtension(assetPath);
+                profile.description = data.description;
+                profile.enforceNamingConvention = data.enforceNamingConvention;
+                profile.validPrefixes = data.validPrefixes ?? new List<string>();
+                profile.defaultPreset = data.defaultPreset ?? new FBXImportPreset { presetName = "Default" };
+                profile.SetRules(data.rules ?? new List<FBXImportRule>());
+
+                AssetDatabase.CreateAsset(profile, assetPath);
+                AssetDatabase.Refresh();
+
+                Debug.Log($"{ToolInfo.LogPrefix} Imported FBX Import Profile: {profile.profileName}");
+                return profile;
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"{ToolInfo.LogPrefix} Import failed: {ex.Message}");
+                EditorUtility.DisplayDialog(
+                    "Import Failed",
+                    "An error occurred while reading the file.",
+                    "OK");
+                return null;
+            }
+        }
+
+        [Serializable]
+        public class FBXImportProfileData
+        {
+            public string profileName;
+            public string description;
+            public bool enforceNamingConvention;
+            public List<string> validPrefixes;
+            public FBXImportPreset defaultPreset;
+            public List<FBXImportRule> rules;
         }
 
         /// <summary>
@@ -265,15 +360,15 @@ namespace GlyphLabs
         /// Forces a reimport so OnPreprocessModel fires again with the new settings.
         /// Used by the manual override button in FBXImporterTab.
         /// </summary>
-        public static void ReprocessAsset(string assetPath, FBXImportProfile profile)
+        public static bool ReprocessAsset(string assetPath, FBXImportProfile profile)
         {
-            if (string.IsNullOrEmpty(assetPath) || profile == null) return;
+            if (string.IsNullOrEmpty(assetPath) || profile == null) return false;
 
             if (!assetPath.EndsWith(".fbx", System.StringComparison.OrdinalIgnoreCase))
             {
                 Debug.LogWarning(
                     $"{ToolInfo.LogPrefix} ReprocessAsset skipped — not an FBX: {assetPath}");
-                return;
+                return false;
             }
 
             // Validate naming before forcing reimport
@@ -285,7 +380,7 @@ namespace GlyphLabs
                         $"{ToolInfo.LogPrefix} Naming convention violation: " +
                         $"'{Path.GetFileName(assetPath)}' does not match any valid prefix. " +
                         $"Reprocess cancelled.");
-                    return;
+                    return false;
                 }
 
                 Debug.LogWarning(
@@ -300,6 +395,7 @@ namespace GlyphLabs
 
             Debug.Log(
                 $"{ToolInfo.LogPrefix} Reprocessed: {Path.GetFileName(assetPath)}");
+            return true;
         }
 
         /// <summary>
@@ -318,8 +414,8 @@ namespace GlyphLabs
                 if (!path.StartsWith("Assets/")) continue;
                 if (!path.EndsWith(".fbx", System.StringComparison.OrdinalIgnoreCase)) continue;
 
-                ReprocessAsset(path, profile);
-                count++;
+                if(ReprocessAsset(path, profile))
+                    count++;
             }
 
             Debug.Log(
@@ -356,6 +452,22 @@ namespace GlyphLabs
 
         private static string ToAbsolutePath(string unityAssetPath) =>
             Path.Combine(ProjectRoot, unityAssetPath).Replace("\\", "/");
+
+        private static void EnsureAssetFolderExists(string folderPath)
+        {
+            if (AssetDatabase.IsValidFolder(folderPath)) return;
+
+            string[] segments = folderPath.Split('/');
+            string current = segments[0];
+
+            for (int i = 1; i < segments.Length; i++)
+            {
+                string next = current + "/" + segments[i];
+                if (!AssetDatabase.IsValidFolder(next))
+                    AssetDatabase.CreateFolder(current, segments[i]);
+                current = next;
+            }
+        }
 
         private static void EnsureDirectoryExists(string unityAssetPath)
         {

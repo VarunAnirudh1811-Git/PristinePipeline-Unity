@@ -18,7 +18,7 @@ namespace GlyphLabs
 
         private string _templateName = "";
         private string _templateDescription = "";
-        private List<string> _folderPaths = new List<string>();
+        private List<string> _folderPaths = new();
         private ReorderableList _reorderableList;
 
         private bool _isEditMode = false;
@@ -62,7 +62,6 @@ namespace GlyphLabs
         public bool Draw(out FolderTemplate savedTemplate, out bool wantsBack)
         {
             savedTemplate = null;
-            wantsBack = false;
 
             DrawCreatorHeader(out wantsBack);
             if (wantsBack) return false;
@@ -112,7 +111,7 @@ namespace GlyphLabs
                     }
                 }
 
-                GUIStyle headingStyle = new GUIStyle(EditorStyles.boldLabel) { fontSize = 13 };
+                GUIStyle headingStyle = new(EditorStyles.boldLabel) { fontSize = 13 };
                 string heading = _isEditMode ? $"Edit  —  {_editTarget.templateName}" : "New Template";
                 EditorGUILayout.LabelField(heading, headingStyle);
             }
@@ -163,55 +162,56 @@ namespace GlyphLabs
                 draggable: true,
                 displayHeader: false,
                 displayAddButton: true,
-                displayRemoveButton: true);
-
-            _reorderableList.drawElementCallback = (rect, index, isActive, isFocused) =>
+                displayRemoveButton: true)
             {
-                rect.y += 2;
-                rect.height = EditorGUIUtility.singleLineHeight;
-
-                EditorGUI.BeginChangeCheck();
-                _folderPaths[index] = EditorGUI.TextField(rect, _folderPaths[index]);
-                if (EditorGUI.EndChangeCheck())
-                    _isDirty = true;
-
-                // Validation warnings drawn below the field
-                bool hasInvalid = FolderGeneratorUtility.HasInvalidCharacters(_folderPaths[index]);
-                bool hasDuplicate = _folderPaths.Count(f => f.Trim() == _folderPaths[index].Trim()) > 1;
-
-                float warningY = rect.y + EditorGUIUtility.singleLineHeight + 2;
-
-                if (hasInvalid)
+                drawElementCallback = (rect, index, isActive, isFocused) =>
                 {
-                    Rect wRect = new Rect(rect.x, warningY, rect.width, EditorGUIUtility.singleLineHeight);
-                    EditorGUI.HelpBox(wRect, "Path contains invalid characters.", MessageType.Warning);
-                    warningY += EditorGUIUtility.singleLineHeight + 2;
-                }
+                    rect.y += 2;
+                    rect.height = EditorGUIUtility.singleLineHeight;
 
-                if (hasDuplicate)
-                {
-                    Rect wRect = new Rect(rect.x, warningY, rect.width, EditorGUIUtility.singleLineHeight);
-                    EditorGUI.HelpBox(wRect, "Duplicate folder path.", MessageType.Warning);
-                }
+                    EditorGUI.BeginChangeCheck();
+                    _folderPaths[index] = EditorGUI.TextField(rect, _folderPaths[index]);
+                    if (EditorGUI.EndChangeCheck())
+                        _isDirty = true;
+
+                    // Validation warnings drawn below the field
+                    bool hasInvalid = FolderGeneratorUtility.HasInvalidCharacters(_folderPaths[index]);
+                    bool hasDuplicate = _folderPaths.Count(f => f.Trim() == _folderPaths[index].Trim()) > 1;
+
+                    float warningY = rect.y + EditorGUIUtility.singleLineHeight + 2;
+
+                    if (hasInvalid)
+                    {
+                        Rect wRect = new(rect.x, warningY, rect.width, EditorGUIUtility.singleLineHeight);
+                        EditorGUI.HelpBox(wRect, "Path contains invalid characters.", MessageType.Warning);
+                        warningY += EditorGUIUtility.singleLineHeight + 2;
+                    }
+
+                    if (hasDuplicate)
+                    {
+                        Rect wRect = new(rect.x, warningY, rect.width, EditorGUIUtility.singleLineHeight);
+                        EditorGUI.HelpBox(wRect, "Duplicate folder path.", MessageType.Warning);
+                    }
+                },
+
+                elementHeightCallback = index =>
+                    {
+                        float height = EditorGUIUtility.singleLineHeight + 4;
+
+                        if (index < 0 || index >= _folderPaths.Count) return height;
+
+                        if (FolderGeneratorUtility.HasInvalidCharacters(_folderPaths[index]))
+                            height += EditorGUIUtility.singleLineHeight + 4;
+
+                        if (_folderPaths.Count(f => f.Trim() == _folderPaths[index].Trim()) > 1)
+                            height += EditorGUIUtility.singleLineHeight + 4;
+
+                        return height;
+                    },
+
+                onAddCallback = list => { _folderPaths.Add(""); _isDirty = true; },
+                onRemoveCallback = list => { _folderPaths.RemoveAt(list.index); _isDirty = true; }
             };
-
-            _reorderableList.elementHeightCallback = index =>
-            {
-                float height = EditorGUIUtility.singleLineHeight + 4;
-
-                if (index < 0 || index >= _folderPaths.Count) return height;
-
-                if (FolderGeneratorUtility.HasInvalidCharacters(_folderPaths[index]))
-                    height += EditorGUIUtility.singleLineHeight + 4;
-
-                if (_folderPaths.Count(f => f.Trim() == _folderPaths[index].Trim()) > 1)
-                    height += EditorGUIUtility.singleLineHeight + 4;
-
-                return height;
-            };
-
-            _reorderableList.onAddCallback = list => { _folderPaths.Add(""); _isDirty = true; };
-            _reorderableList.onRemoveCallback = list => { _folderPaths.RemoveAt(list.index); _isDirty = true; };
         }
 
         // ── Save ─────────────────────────────────────────────────────────────────
@@ -243,19 +243,6 @@ namespace GlyphLabs
                 return false;
             }
 
-            // Sanitize: remove blanks and duplicates
-            _folderPaths = _folderPaths
-                .Where(p => !string.IsNullOrWhiteSpace(p))
-                .Select(p => p.Trim())
-                .Distinct()
-                .ToList();
-
-            if (_folderPaths.Count == 0)
-            {
-                EditorUtility.DisplayDialog("Cannot Save", "Add at least one folder path.", "OK");
-                return false;
-            }
-
             // Conflict check for new templates only
             if (!_isEditMode)
             {
@@ -272,6 +259,19 @@ namespace GlyphLabs
                     return false;
                 }
             }
+
+            // Sanitize: remove blanks and duplicates
+            _folderPaths = _folderPaths
+                .Where(p => !string.IsNullOrWhiteSpace(p))
+                .Select(p => p.Trim())
+                .Distinct()
+                .ToList();
+
+            if (_folderPaths.Count == 0)
+            {
+                EditorUtility.DisplayDialog("Cannot Save", "Add at least one folder path.", "OK");
+                return false;
+            }            
 
             return true;
         }

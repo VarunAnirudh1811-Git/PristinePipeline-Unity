@@ -27,6 +27,20 @@ namespace GlyphLabs
 
         private const string FolderGen_ActiveTemplateGuidKey = "FolderGen.ActiveTemplateGuid";
         private const string FolderGen_TemplateSavePathKey = "FolderGen.TemplateSavePath";
+        private const string FolderGen_UseProjectRootKey = "FolderGen.UseProjectRoot";
+        private const string FolderGen_AddKeepFilesKey = "FolderGen.AddKeepFiles";
+
+        public static bool FolderGen_UseProjectRoot
+        {
+            get => EditorPrefs.GetBool(Key(FolderGen_UseProjectRootKey), false);
+            set => EditorPrefs.SetBool(Key(FolderGen_UseProjectRootKey), value);
+        }
+
+        public static bool FolderGen_AddKeepFiles
+        {
+            get => EditorPrefs.GetBool(Key(FolderGen_AddKeepFilesKey), true);
+            set => EditorPrefs.SetBool(Key(FolderGen_AddKeepFilesKey), value);
+        }
 
         public static string FolderGen_ActiveTemplateGuid
         {
@@ -103,6 +117,8 @@ namespace GlyphLabs
             EditorPrefs.DeleteKey(Key(ActiveTabKey));
             EditorPrefs.DeleteKey(Key(FolderGen_ActiveTemplateGuidKey));
             EditorPrefs.DeleteKey(Key(FolderGen_TemplateSavePathKey));
+            EditorPrefs.DeleteKey(Key(FolderGen_UseProjectRootKey));
+            EditorPrefs.DeleteKey(Key(FolderGen_AddKeepFilesKey));
             EditorPrefs.DeleteKey(Key(Organizer_EnabledKey));
             EditorPrefs.DeleteKey(Key(Organizer_ActiveProfileGuidKey));
             EditorPrefs.DeleteKey(Key(Organizer_ProfileSavePathKey));

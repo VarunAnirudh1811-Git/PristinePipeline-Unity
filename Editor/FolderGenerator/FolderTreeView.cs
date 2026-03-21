@@ -109,7 +109,6 @@ namespace GlyphLabs
             }
 
             var trieRoot = new TrieNode("root", _rootPath);
-            int nextId = 1;
 
             foreach (string folder in _template.FolderPaths)
             {
@@ -117,7 +116,7 @@ namespace GlyphLabs
                 if (string.IsNullOrEmpty(normalized)) continue;
 
                 string[] segments = normalized.Split('/');
-                trieRoot.Insert(segments, _rootPath, ref nextId);
+                trieRoot.Insert(segments, _rootPath);
             }
 
             foreach (TrieNode child in trieRoot.Children.Values.OrderBy(n => n.Name))
@@ -177,7 +176,7 @@ namespace GlyphLabs
         {
             public string Name { get; }
             public string FullPath { get; }
-            public int Id { get; set; }
+            public int Id { get; }
             public Dictionary<string, TrieNode> Children { get; }
                 = new Dictionary<string, TrieNode>();
 
@@ -185,9 +184,10 @@ namespace GlyphLabs
             {
                 Name = name;
                 FullPath = fullPath;
+                Id = fullPath.GetHashCode();
             }
 
-            public void Insert(string[] segments, string parentPath, ref int nextId)
+            public void Insert(string[] segments, string parentPath)
             {
                 if (segments.Length == 0) return;
 
@@ -196,11 +196,11 @@ namespace GlyphLabs
 
                 if (!Children.TryGetValue(seg, out TrieNode child))
                 {
-                    child = new TrieNode(seg, fullPath) { Id = nextId++ };
+                    child = new TrieNode(seg, fullPath);
                     Children[seg] = child;
                 }
 
-                child.Insert(segments.Skip(1).ToArray(), fullPath, ref nextId);
+                child.Insert(segments.Skip(1).ToArray(), fullPath);
             }
         }
 
