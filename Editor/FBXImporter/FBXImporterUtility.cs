@@ -25,6 +25,12 @@ namespace GlyphLabs
         {
             var profiles = new List<FBXImportProfile>();
             string userPath = ToolSettings.FBX_ProfileSavePath;
+            string builtInPath = ToolInfo.BuiltInProfilePath;
+
+            if (AssetDatabase.IsValidFolder(builtInPath))
+            {
+                LoadProfilesFromPath(builtInPath, profiles);
+            }
 
             if (!string.IsNullOrWhiteSpace(userPath))
             {
@@ -121,7 +127,7 @@ namespace GlyphLabs
         // ── Profile import / export ─────────────────────────────────────────────
 
         /// <summary>
-        /// Exports a FolderTemplate to a JSON file via a save panel dialog.
+        /// Exports an FBXImportProfile to a JSON file via a save panel dialog.
         /// </summary>
         public static void ExportProfile(FBXImportProfile profile)
         {
@@ -409,13 +415,23 @@ namespace GlyphLabs
             string[] allAssets = AssetDatabase.GetAllAssetPaths();
             int count = 0;
 
-            foreach (string path in allAssets)
-            {
-                if (!path.StartsWith("Assets/")) continue;
-                if (!path.EndsWith(".fbx", System.StringComparison.OrdinalIgnoreCase)) continue;
+            AssetDatabase.StartAssetEditing();
 
-                if(ReprocessAsset(path, profile))
-                    count++;
+            try
+            {
+                foreach (string path in allAssets)
+                {
+                    if (!path.StartsWith("Assets/")) continue;
+                    if (!path.EndsWith(".fbx", System.StringComparison.OrdinalIgnoreCase)) continue;
+
+                    if (ReprocessAsset(path, profile))
+                        count++;
+                }
+            }
+            finally
+            {
+                AssetDatabase.StopAssetEditing();
+                AssetDatabase.Refresh();
             }
 
             Debug.Log(

@@ -250,7 +250,7 @@ namespace GlyphLabs
                     ToolSettings.FolderGen_TemplateSavePath,
                     _templateName.Trim() + ".asset").Replace("\\", "/");
 
-                if (File.Exists(assetPath))
+                if (AssetDatabase.LoadAssetAtPath<FolderTemplate>(assetPath) != null)
                 {
                     EditorUtility.DisplayDialog(
                         "Duplicate Template",
@@ -258,14 +258,7 @@ namespace GlyphLabs
                         "OK");
                     return false;
                 }
-            }
-
-            // Sanitize: remove blanks and duplicates
-            _folderPaths = _folderPaths
-                .Where(p => !string.IsNullOrWhiteSpace(p))
-                .Select(p => p.Trim())
-                .Distinct()
-                .ToList();
+            }            
 
             if (_folderPaths.Count == 0)
             {
@@ -278,18 +271,25 @@ namespace GlyphLabs
 
         private FolderTemplate BuildOrUpdateTemplate()
         {
+            // Sanitize: remove blanks and duplicates
+            var sanitized = _folderPaths
+                .Where(p => !string.IsNullOrWhiteSpace(p))
+                .Select(p => p.Trim())
+                .Distinct()
+                .ToList();
+
             if (_isEditMode && _editTarget != null)
             {
                 _editTarget.templateName = _templateName.Trim();
                 _editTarget.description = _templateDescription.Trim();
-                _editTarget.SetFolderPaths(_folderPaths);
+                _editTarget.SetFolderPaths(sanitized);
                 return _editTarget;
             }
 
             var t = ScriptableObject.CreateInstance<FolderTemplate>();
             t.templateName = _templateName.Trim();
             t.description = _templateDescription.Trim();
-            t.SetFolderPaths(_folderPaths);
+            t.SetFolderPaths(sanitized);
             return t;
         }
     }

@@ -572,7 +572,7 @@ namespace GlyphLabs
                     ToolSettings.Organizer_ProfileSavePath,
                     _editName.Trim() + ".asset").Replace("\\", "/");
 
-                if (System.IO.File.Exists(assetPath))
+                if (AssetDatabase.LoadAssetAtPath<AssetMappingProfile>(assetPath) != null)
                 {
                     EditorUtility.DisplayDialog(
                         "Duplicate Profile",

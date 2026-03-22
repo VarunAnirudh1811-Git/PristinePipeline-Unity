@@ -25,6 +25,12 @@ namespace GlyphLabs
         {
             var profiles = new List<AssetMappingProfile>();
             string userPath = ToolSettings.Organizer_ProfileSavePath;
+            string builtInPath = ToolInfo.BuiltInProfilePath;
+
+            if (AssetDatabase.IsValidFolder(builtInPath))
+            {
+                LoadProfilesFromPath(builtInPath, profiles);
+            }
 
             if (!string.IsNullOrWhiteSpace(userPath))
             {
@@ -142,7 +148,7 @@ namespace GlyphLabs
         // ── Profile import / export ─────────────────────────────────────────────
 
         /// <summary>
-        /// Exports a FolderTemplate to a JSON file via a save panel dialog.
+        /// Exports an AssetMappingProfile to a JSON file via a save panel dialog.
         /// </summary>
         public static void ExportProfile(AssetMappingProfile profile)
         {
@@ -329,7 +335,7 @@ namespace GlyphLabs
         /// Creates the destination folder if it does not exist.
         /// Returns true if the move succeeded, false if it was skipped or failed.
         /// </summary>
-        public static bool MoveAsset(string assetPath, MappingRule rule)
+        public static bool  MoveAsset(string assetPath, MappingRule rule)
         {
             if (rule == null || string.IsNullOrWhiteSpace(rule.destinationFolder))
                 return false;
@@ -342,10 +348,7 @@ namespace GlyphLabs
             string currentFolder = Path.GetDirectoryName(assetPath)?.Replace("\\", "/");
             if (string.Equals(currentFolder, destination, StringComparison.OrdinalIgnoreCase))
                 return false;
-
-            // Ensure the destination folder exists — create it if needed
-            EnsureAssetFolderExists(destination);
-
+                        
             // Check for a name collision at the destination
             if (AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(targetPath) != null)
             {
@@ -353,6 +356,9 @@ namespace GlyphLabs
                     $"{ToolInfo.LogPrefix} Skipped move — asset already exists at '{targetPath}'.");
                 return false;
             }
+
+            // Ensure the destination folder exists — create it if needed
+            EnsureAssetFolderExists(destination);
 
             string error = AssetDatabase.MoveAsset(assetPath, targetPath);
 
@@ -377,9 +383,8 @@ namespace GlyphLabs
             skipped = 0;
 
             if (profile == null) return 0;
-            else skipped++;
 
-                string[] allAssets = AssetDatabase.GetAllAssetPaths();
+            string[] allAssets = AssetDatabase.GetAllAssetPaths();
             int moved = 0;
 
             AssetDatabase.StartAssetEditing();
@@ -388,7 +393,6 @@ namespace GlyphLabs
             {
                 foreach (string assetPath in allAssets)
                 {
-                    // Skip folders, meta files, and anything outside Assets/
                     if (!assetPath.StartsWith("Assets/")) continue;
                     if (AssetDatabase.IsValidFolder(assetPath)) continue;
 
@@ -397,6 +401,8 @@ namespace GlyphLabs
 
                     if (MoveAsset(assetPath, rule))
                         moved++;
+                    else
+                        skipped++;
                 }
             }
             finally

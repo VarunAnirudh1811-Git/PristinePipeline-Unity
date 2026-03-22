@@ -1,6 +1,5 @@
 ﻿using System.Collections.Generic;
 using System.IO;
-using System.Net;
 using UnityEditor;
 using UnityEditorInternal;
 using UnityEngine;
@@ -771,7 +770,7 @@ namespace GlyphLabs
                     ToolSettings.FBX_ProfileSavePath,
                     _editName.Trim() + ".asset").Replace("\\", "/");
 
-                if (File.Exists(assetPath))
+                if (AssetDatabase.LoadAssetAtPath<FBXImportProfile>(assetPath) != null)
                 {
                     EditorUtility.DisplayDialog(
                         "Duplicate Profile",

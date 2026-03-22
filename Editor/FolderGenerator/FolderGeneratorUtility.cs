@@ -28,17 +28,14 @@ namespace GlyphLabs
         public static List<FolderTemplate> LoadAllTemplates()
         {
             var templates = new List<FolderTemplate>();
-
-            // Built-in templates
             string builtInPath = ToolInfo.BuiltInTemplatePath;
+            string userPath = ToolSettings.FolderGen_TemplateSavePath;
 
             if (AssetDatabase.IsValidFolder(builtInPath))
             {
                 LoadTemplatesFromPath(builtInPath, templates);
             }
-
-            // User-created templates
-            string userPath = ToolSettings.FolderGen_TemplateSavePath;
+                        
 
             if (AssetDatabase.IsValidFolder(userPath))
             {
@@ -128,9 +125,11 @@ namespace GlyphLabs
             string cloneName = source.templateName + "_Copy";
             string assetPath = BuildUniqueAssetPath(ToolSettings.FolderGen_TemplateSavePath, cloneName);
 
-            var clone = UnityEngine.Object.Instantiate(source);
+            var clone = ScriptableObject.CreateInstance<FolderTemplate>();
             clone.templateName = Path.GetFileNameWithoutExtension(assetPath);
+            clone.description = source.description;
             clone.isBuiltIn = false;
+            clone.SetFolderPaths(new List<string>(source.FolderPaths));
 
             AssetDatabase.CreateAsset(clone, assetPath);
             AssetDatabase.Refresh();
@@ -249,7 +248,8 @@ namespace GlyphLabs
                     string normalized = NormalizePath(folder);
                     if (string.IsNullOrEmpty(normalized)) continue;
 
-                    string fullPath = Path.Combine(rootPath, normalized).Replace("\\", "/");
+                    string assetRelativePath = Path.Combine(rootPath, normalized).Replace("\\", "/");
+                    string fullPath = ToAbsolutePath(assetRelativePath);
 
                     try
                     {
@@ -261,7 +261,7 @@ namespace GlyphLabs
 
                         if (addKeepFiles && IsDirectoryEmpty(fullPath))
                             File.WriteAllText(
-                                Path.Combine(ToAbsolutePath(fullPath), ".keep"),
+                                Path.Combine(fullPath, ".keep"),
                                 "# This file ensures the folder is tracked by version control.\n");
                     }
                     catch (Exception ex)
@@ -303,12 +303,12 @@ namespace GlyphLabs
                 .Except(new[] { '/', '\\' })
                 .ToArray();
 
-            string cleaned = new string(path.Where(c => !invalid.Contains(c)).ToArray());
+            string cleaned = new (path.Where(c => !invalid.Contains(c)).ToArray());
             return cleaned.Replace("\\", "/").Trim().Trim('/');
         }
 
         /// <summary>
-        /// Returns true if the given path contains no files or subdirectories.
+        /// Returns true if the given path contains characters invalid for a folder name.
         /// </summary>
         public static bool HasInvalidCharacters(string path)
         {

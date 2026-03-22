@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+#if UNITY_EDITOR
 using UnityEditor;
+#endif
 using UnityEngine;
 
 namespace GlyphLabs
@@ -20,8 +22,12 @@ namespace GlyphLabs
         [Tooltip("Uniform scale applied on import. Maya = 0.01, Blender = 1.0.")]
         public float scaleFactor = 1.0f;
 
+#if UNITY_EDITOR
+
         [Tooltip("Reduces mesh data size on disk and in memory. Off preserves precision.")]
         public ModelImporterMeshCompression meshCompression = ModelImporterMeshCompression.Off;
+
+#endif
 
         [Tooltip("Allows CPU-side mesh access at runtime. Off for most static props.")]
         public bool readWriteEnabled = false;
@@ -32,11 +38,15 @@ namespace GlyphLabs
         [Tooltip("Generates a second UV channel for lightmap baking. On for static meshes.")]
         public bool generateLightmapUVs = false;
 
+#if UNITY_EDITOR
+
         [Tooltip("How normals are sourced. Import preserves artist intent from the DCC tool.")]
         public ModelImporterNormals normals = ModelImporterNormals.Import;
 
         [Tooltip("How tangents are sourced. Calculate Mikkt Space matches most bakers.")]
         public ModelImporterTangents tangents = ModelImporterTangents.CalculateMikk;
+
+#endif
 
         [Tooltip("Swaps UV channel 0 and 1. Fixes assets exported with inverted UV order.")]
         public bool swapUVs = false;
@@ -54,7 +64,7 @@ namespace GlyphLabs
         public string namePattern = "";
 
         [Tooltip("The import preset applied when this rule matches.")]
-        public FBXImportPreset preset = new FBXImportPreset();
+        public FBXImportPreset preset = new ();
 
         [Tooltip("Optional note describing what this rule is for.")]
         public string note = "";
@@ -88,13 +98,13 @@ namespace GlyphLabs
 
         [Tooltip("Valid name prefixes used for convention validation — e.g. SM_, SK_, P_. " +
                  "Any FBX whose name doesn't start with one of these is flagged.")]
-        public List<string> validPrefixes = new List<string> { "SM_", "SK_", "P_" };
+        public List<string> validPrefixes = new () { "SM_", "SK_", "P_" };
 
         // ── Default preset ───────────────────────────────────────────────────────
 
         [Tooltip("Applied to any FBX that doesn't match a named rule. " +
                  "A warning is always logged when this fallback is used.")]
-        public FBXImportPreset defaultPreset = new FBXImportPreset
+        public FBXImportPreset defaultPreset = new ()
         {
             presetName = "Default"
         };
@@ -102,7 +112,7 @@ namespace GlyphLabs
         // ── Rules ────────────────────────────────────────────────────────────────
 
         [SerializeField]
-        private List<FBXImportRule> rules = new List<FBXImportRule>();
+        private List<FBXImportRule> rules = new ();
 
         // ── API ──────────────────────────────────────────────────────────────────
 

@@ -24,8 +24,8 @@ namespace GlyphLabs
         private string[] _templateNames = new string[0];
         private int _selectedIndex = 0;
 
-        private bool _useProjectRoot = ToolSettings.FolderGen_UseProjectRoot;
-        private bool _addKeepFiles = ToolSettings.FolderGen_AddKeepFiles;
+        private bool _useProjectRoot;
+        private bool _addKeepFiles;
         private string _projectName = "";
 
         // ── Tree view ────────────────────────────────────────────────────────────
@@ -46,6 +46,9 @@ namespace GlyphLabs
 
         public void OnEnable()
         {
+            _useProjectRoot = ToolSettings.FolderGen_UseProjectRoot;
+            _addKeepFiles = ToolSettings.FolderGen_AddKeepFiles;
+
             _treeViewState = new TreeViewState<int>();
             _treeView = new FolderTreeView(_treeViewState);
 

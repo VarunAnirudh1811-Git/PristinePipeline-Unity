@@ -184,7 +184,7 @@ namespace GlyphLabs
             {
                 Name = name;
                 FullPath = fullPath;
-                Id = fullPath.GetHashCode();
+                Id = FolderTreeView.GetStableHashCode(fullPath);
             }
 
             public void Insert(string[] segments, string parentPath)
@@ -202,6 +202,7 @@ namespace GlyphLabs
 
                 child.Insert(segments.Skip(1).ToArray(), fullPath);
             }
+
         }
 
         private static void BuildItemsRecursive(
@@ -213,5 +214,19 @@ namespace GlyphLabs
             foreach (TrieNode child in node.Children.Values.OrderBy(n => n.Name))
                 BuildItemsRecursive(item, child, depth + 1);
         }
+
+
+        internal static int GetStableHashCode(string str)
+        {
+            unchecked
+            {
+                int hash = 17;
+                foreach (char c in str)
+                    hash = hash * 31 + c;
+                return hash;
+            }
+        }
+
     }
+
 }

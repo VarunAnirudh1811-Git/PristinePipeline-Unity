@@ -50,12 +50,12 @@ namespace GlyphLabs
             {
                 if (profile.enforceNamingConvention)
                 {
-                    // Block the import — cancel by throwing an exception.
-                    // Unity catches AssetImporter exceptions and aborts the import.
-                    throw new System.Exception(
+                    // Logs error with details about the expected naming convention based on profile.validPrefixes
+                    Debug.LogError(
                         $"{ToolInfo.LogPrefix} Import blocked — '{fileName}' does not match " +
                         $"any valid prefix in profile '{profile.profileName}'. " +
                         $"Valid prefixes: {string.Join(", ", profile.validPrefixes)}");
+                    return;
                 }
 
                 Debug.LogWarning(
