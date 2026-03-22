@@ -1,0 +1,29 @@
+{
+  "name": "com.glyphlabs.pristinepipeline",
+  "version": "1.0.0",
+  "displayName": "Pristine Pipeline",
+  "description": "A Unity Editor toolkit for keeping your project clean and consistent. Includes a Folder Generator, Asset Organizer, and FBX Importer — all accessible from a single Editor window.",
+  "unity": "2021.3",
+  "unityRelease": "0f1",
+  "author": {
+    "name": "Varun Anirudh Tirunagari",
+    "url": "https://github.com/VarunAnirudh1811-Git"
+  },
+  "license": "MIT",
+  "keywords": [
+    "editor",
+    "tools",
+    "folder",
+    "organizer",
+    "fbx",
+    "importer",
+    "pipeline",
+    "workflow"
+  ],
+  "category": "Editor Tools",
+  "documentationUrl": "https://github.com/VarunAnirudh1811-Git/PristinePipeline-Unity#readme",
+  "changelogUrl": "https://github.com/VarunAnirudh1811-Git/PristinePipeline-Unity/blob/main/CHANGELOG.md",
+  "licensesUrl": "https://github.com/VarunAnirudh1811-Git/PristinePipeline-Unity/blob/main/LICENSE",
+  "dependencies": {},
+  "type": "tool"
+}
