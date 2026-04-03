@@ -3,7 +3,7 @@
   "version": "1.1.0",
   "displayName": "Pristine Pipeline",
   "description": "A Unity Editor toolkit for keeping your project clean and consistent. Includes a Folder Generator, Asset Organizer, and FBX Importer — all accessible from a single Editor window.",
-  "unity": "2021.3",
+  "unity": "6000.3",
   "unityRelease": "0f1",
   "author": {
     "name": "Varun Anirudh Tirunagari",

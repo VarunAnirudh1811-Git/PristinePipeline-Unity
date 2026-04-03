@@ -51,7 +51,10 @@ namespace GlyphLabs.PristinePipeline
                 var profile = AssetDatabase.LoadAssetAtPath<AssetMappingProfile>(path);
 
                 if (profile != null && !results.Contains(profile))
+                {
                     results.Add(profile);
+                    profile.isBuiltIn = path.StartsWith("Packages/");
+                }                    
             }
         }
 
@@ -60,8 +63,11 @@ namespace GlyphLabs.PristinePipeline
         /// </summary>
         public static string[] GetProfileDisplayNames(List<AssetMappingProfile> profiles)
         {
-            return profiles.Select(p => p.profileName).ToArray();
+            return profiles
+                 .Select(p => p.isBuiltIn ? $"{p.profileName} (Built-in)" : p.profileName)
+                 .ToArray();
         }
+        
 
         // ── Profile persistence ──────────────────────────────────────────────────
 

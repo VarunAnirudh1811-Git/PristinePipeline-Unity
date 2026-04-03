@@ -12,7 +12,7 @@ namespace GlyphLabs.PristinePipeline
     /// </summary>
     [Serializable]
     public class MappingRule
-    {
+    {        
         [Tooltip("File extension without the dot — e.g. png, fbx, wav")]
         public string extension = "";
 
@@ -43,7 +43,14 @@ namespace GlyphLabs.PristinePipeline
         public string description = "";
 
         [SerializeField]
-        private List<MappingRule> rules = new List<MappingRule>();
+        private List<MappingRule> rules = new ();
+
+        /// <summary>
+        /// Hidden from the Inspector — set only by GlyphLabs on built-in package templates.
+        /// When true, the Folder Generator tab treats this template as read-only.
+        /// </summary>
+        [HideInInspector]
+        public bool isBuiltIn = false;
 
         // ── API ──────────────────────────────────────────────────────────────────
 

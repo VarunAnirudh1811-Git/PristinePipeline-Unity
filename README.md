@@ -1,6 +1,6 @@
 # Pristine Pipeline ![Version](https://img.shields.io/github/v/release/VarunAnirudh1811-Git/PristinePipeline-Unity?label=Version&color=blue)
 
-![Unity](https://img.shields.io/badge/Unity-2021.3%2B-black?logo=unity&logoColor=white) ![License](https://img.shields.io/badge/License-MIT-green.svg)
+![Unity](https://img.shields.io/badge/Unity-6000.3%2B-black?logo=unity&logoColor=white) ![License](https://img.shields.io/badge/License-MIT-green.svg)
 
 ---
 
@@ -47,7 +47,7 @@ All three tools are accessible from a single window inside the Unity Editor.
 
 > **Important:** Pristine Pipeline must be installed through the Unity Package Manager using one of the methods below. If installed incorrectly, the built-in default profiles and templates that come with the package will not be accessible inside the tool.
 
-> **Requires:** Unity 2021.3 or later
+> **Requires:** Unity 6000.3 or later
 
 ---
 

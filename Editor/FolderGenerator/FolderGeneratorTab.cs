@@ -102,7 +102,8 @@ namespace GlyphLabs.PristinePipeline
         // ── Template selector + primary action ───────────────────────────────────
 
         private void DrawTemplateSelectorAndAction()
-        {// ── Primary action — promoted to top ─────────────────────────────────
+        {
+            // ── Primary action — promoted to top ─────────────────────────────────
             bool canGenerate = ActiveTemplate != null &&
                                (!_useProjectRoot || !string.IsNullOrWhiteSpace(_projectName));
 

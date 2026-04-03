@@ -169,6 +169,13 @@ namespace GlyphLabs.PristinePipeline
         [SerializeField]
         private List<FBXImportRule> rules = new();
 
+        /// <summary>
+        /// Hidden from the Inspector — set only by GlyphLabs on built-in package templates.
+        /// When true, the Folder Generator tab treats this template as read-only.
+        /// </summary>
+        [HideInInspector]
+        public bool isBuiltIn = false;
+
         // ── API ──────────────────────────────────────────────────────────────────
 
         /// <summary>Read-only view of the rules list.</summary>

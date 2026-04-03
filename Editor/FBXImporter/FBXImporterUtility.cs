@@ -69,12 +69,18 @@ namespace GlyphLabs.PristinePipeline
                 var profile = AssetDatabase.LoadAssetAtPath<FBXImportProfile>(path);
 
                 if (profile != null && !results.Contains(profile))
+                {
                     results.Add(profile);
+                    profile.isBuiltIn = path.StartsWith("Packages/");
+                }
             }
         }
 
-        public static string[] GetProfileDisplayNames(List<FBXImportProfile> profiles)
-            => profiles.Select(p => p.profileName).ToArray();
+        public static string[] GetProfileDisplayNames(List<FBXImportProfile> profiles) {
+           return profiles
+                .Select(p => p.isBuiltIn ? $"{p.profileName} (Built-in)" : p.profileName)
+                .ToArray();
+        }
 
         // ── Profile persistence ──────────────────────────────────────────────────
 

@@ -14,6 +14,29 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [1.1.1] — 2026-04-03
+
+### Added — Built-in Profile Detection
+
+- Profiles located in `Packages/` are now automatically marked as built-in
+- Built-in profiles are shown with a **"(Built-in)"** suffix in dropdowns
+
+### Changed
+
+- Built-in status is now determined at load time instead of being stored or imported
+
+### Removed — Compatibility
+
+- Removed support for older Unity versions that use the non-generic TreeView API
+- Pristine Pipeline now requires Unity 6000.3 or newer due to TreeView API changes
+
+### Improved
+
+- Minor code cleanup and formatting improvements
+
+
+___
+
 
 
 ## [1.1.0] — 2026-04-03
