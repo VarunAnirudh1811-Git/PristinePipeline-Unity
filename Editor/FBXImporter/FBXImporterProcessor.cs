@@ -5,29 +5,30 @@ using UnityEngine;
 namespace GlyphLabs
 {
     /// <summary>
-    /// Intercepts FBX imports via Unity's AssetPostprocessor.OnPreprocessModel.
-    /// Applies the active FBXImportProfile's settings to the ModelImporter
-    /// before Unity processes the file — this is the correct hook for
-    /// overriding import settings programmatically.
+    /// Intercepts FBX imports via Unity's AssetPostprocessor.
     ///
-    /// Only runs when FBX_Enabled is true and an active profile is set.
-    /// Naming convention enforcement (block vs warn) is controlled by
-    /// profile.enforceNamingConvention.
+    /// OnPreprocessModel (Phase 4)
+    ///   Fires BEFORE Unity processes the model. ModelImporter is writable here.
+    ///   Applies mesh settings (scale, compression, normals, tangents, etc.)
+    ///   from the active FBXImportProfile preset.
+    ///   Also enforces or warns on naming convention violations.
+    ///
+    /// OnPostprocessModel (Phase 5)
+    ///   Fires AFTER Unity has processed the model and mesh data is available.
+    ///   Delegates material creation, texture assignment, and prefab generation
+    ///   to FBXImporterUtility.RunPostImportSteps.
+    ///   Skipped if the tool is disabled or no profile is set.
+    ///
+    /// Neither callback should call AssetDatabase.StartAssetEditing /
+    /// StopAssetEditing — Unity manages the asset editing scope around postprocessors.
     /// </summary>
     public class FBXImporterProcessor : AssetPostprocessor
     {
-        // OnPreprocessModel fires before Unity processes a model file.
-        // At this point the ModelImporter is writable — any settings we apply
-        // here will be used for this import pass.
-        // This is the correct hook for programmatic import settings.
-        // OnPostprocessModel fires after processing — too late to change settings.
+        // ── OnPreprocessModel ────────────────────────────────────────────────────
+
         private void OnPreprocessModel()
         {
-            // Only process FBX files
-            if (!assetPath.EndsWith(".fbx", System.StringComparison.OrdinalIgnoreCase))
-                return;
-
-            // Bail if the importer is disabled
+            if (!assetPath.EndsWith(".fbx", System.StringComparison.OrdinalIgnoreCase)) return;
             if (!ToolSettings.FBX_Enabled) return;
 
             FBXImportProfile profile = ProfileRegistry.GetActiveImportProfile();
@@ -44,17 +45,19 @@ namespace GlyphLabs
 
             // ── Naming convention validation ─────────────────────────────────────
 
-            bool nameIsValid = FBXImporterUtility.ValidateName(profile, assetPath);
-
-            if (!nameIsValid)
+            if (!FBXImporterUtility.ValidateName(profile, assetPath))
             {
                 if (profile.enforceNamingConvention)
                 {
-                    // Logs error with details about the expected naming convention based on profile.validPrefixes
+                    // Log error with details then return — this does NOT block the import
+                    // at the AssetPostprocessor level (throwing here is unreliable across
+                    // Unity versions). The file is still imported but settings are not applied.
+                    // The error in the Console is the signal to the user.
                     Debug.LogError(
-                        $"{ToolInfo.LogPrefix} Import blocked — '{fileName}' does not match " +
-                        $"any valid prefix in profile '{profile.profileName}'. " +
-                        $"Valid prefixes: {string.Join(", ", profile.validPrefixes)}");
+                        $"{ToolInfo.LogPrefix} Naming convention violation — '{fileName}' " +
+                        $"does not match any valid prefix in profile '{profile.profileName}'. " +
+                        $"Valid prefixes: {string.Join(", ", profile.validPrefixes)}. " +
+                        $"Import settings were NOT applied.");
                     return;
                 }
 
@@ -63,19 +66,44 @@ namespace GlyphLabs
                     $"match any valid prefix in profile '{profile.profileName}'.");
             }
 
-            // ── Find matching preset and apply settings ───────────────────────────
+            // ── Apply mesh import settings ───────────────────────────────────────
 
             FBXImportPreset preset = FBXImporterUtility.FindMatchingPreset(profile, assetPath);
-
             if (preset == null) return;
 
-            ModelImporter importer = assetImporter as ModelImporter;
+            var importer = assetImporter as ModelImporter;
             if (importer == null) return;
 
             FBXImporterUtility.ApplyPreset(importer, preset);
 
             Debug.Log(
                 $"{ToolInfo.LogPrefix} Applied preset '{preset.presetName}' to '{fileName}'.");
+        }
+
+        // ── OnPostprocessModel ───────────────────────────────────────────────────
+
+        private void OnPostprocessModel(GameObject importedModel)
+        {
+            if (!assetPath.EndsWith(".fbx", System.StringComparison.OrdinalIgnoreCase)) return;
+            if (!ToolSettings.FBX_Enabled) return;
+
+            FBXImportProfile profile = ProfileRegistry.GetActiveImportProfile();
+            if (profile == null) return;
+
+            // Skip if naming convention is enforced and the name is invalid —
+            // consistent with OnPreprocessModel which also returns early in that case.
+            if (!FBXImporterUtility.ValidateName(profile, assetPath)
+                && profile.enforceNamingConvention)
+                return;
+
+            FBXImportPreset preset = FBXImporterUtility.FindMatchingPreset(profile, assetPath);
+            if (preset == null) return;
+
+            // RunPostImportSteps handles material creation, texture assignment, and
+            // conditional prefab generation. It calls AssetDatabase.Refresh internally.
+            // The importedModel parameter here is the in-memory object — we pass the
+            // asset path so the utility can load the on-disk asset for prefab generation.
+            FBXImporterUtility.RunPostImportSteps(assetPath, preset, profile);
         }
     }
 }

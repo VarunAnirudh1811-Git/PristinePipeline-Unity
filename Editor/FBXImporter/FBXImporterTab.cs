@@ -10,6 +10,16 @@ namespace GlyphLabs
     /// Draws the FBX Importer tab inside PristinePipelineWindow.
     /// Owns the tab's UI state and mode transitions (list ↔ create/edit).
     /// All profile operations and import logic are delegated to FBXImporterUtility.
+    ///
+    /// Phase 5 additions:
+    ///   - DrawPresetFields now includes material prefix, folders, generate prefab
+    ///     toggle, and lightmap static toggle.
+    ///   - Profile create/edit mode shows emission and AO profile-level toggles.
+    ///   - List mode has a manual "Generate Prefabs Now" button.
+    ///
+    /// Enum fields (MeshCompression, Normals, Tangents) are read/written via
+    /// FBXImportPresetEditorExtensions rather than direct casts, keeping the
+    /// Runtime type free of UnityEditor dependencies.
     /// </summary>
     public class FBXImporterTab
     {
@@ -31,23 +41,19 @@ namespace GlyphLabs
         private string _editName = "";
         private string _editDescription = "";
         private bool _editEnforce = false;
+        private bool _editEmission = false;
+        private bool _editAO = true;
         private List<string> _editPrefixes = new();
         private FBXImportPreset _editDefaultPreset;
         private List<FBXImportRule> _editRules = new();
         private ReorderableList _rulesReorderable;
         private ReorderableList _prefixReorderable;
         private bool _isDirty = false;
-
-        // Foldout states for default preset inspector
         private bool _defaultPresetFoldout = true;
 
         // ── Lifecycle ────────────────────────────────────────────────────────────
 
-        public void OnEnable()
-        {
-            RefreshProfiles();
-        }
-
+        public void OnEnable() => RefreshProfiles();
         public void OnDisable() { }
 
         // ── Entry point ──────────────────────────────────────────────────────────
@@ -71,7 +77,7 @@ namespace GlyphLabs
             PristinePipelineWindow.DrawDivider();
             DrawActiveProfileSummary();
             PristinePipelineWindow.DrawDivider();
-            DrawManualReprocess();
+            DrawManualActions();
         }
 
         // ── Enable toggle ────────────────────────────────────────────────────────
@@ -123,16 +129,13 @@ namespace GlyphLabs
                 EditorGUILayout.HelpBox(
                     "No profiles found. Create one below or check the profile save path in Settings.",
                     MessageType.Warning);
-
                 EditorGUILayout.Space(4);
                 DrawProfileManagementButtons(null, parentWindow);
                 return;
             }
 
             int newIndex = EditorGUILayout.Popup(
-                new GUIContent("Active Profile"),
-                _selectedIndex,
-                _profileNames);
+                new GUIContent("Active Profile"), _selectedIndex, _profileNames);
 
             if (newIndex != _selectedIndex)
             {
@@ -154,7 +157,6 @@ namespace GlyphLabs
         {
             float halfWidth = (EditorGUIUtility.currentViewWidth - 9f) / 2f;
 
-            // Row 1 — New / Edit
             using (new EditorGUILayout.HorizontalScope())
             {
                 if (GUILayout.Button("New Profile", GUILayout.Width(halfWidth)))
@@ -178,7 +180,6 @@ namespace GlyphLabs
 
             EditorGUILayout.Space(4);
 
-            // Row 2 — Duplicate / Delete
             using (new EditorGUILayout.HorizontalScope())
             {
                 GUI.enabled = selected != null;
@@ -262,7 +263,6 @@ namespace GlyphLabs
             {
                 EditorGUILayout.Space(2);
 
-                // Column headers
                 using (new EditorGUILayout.HorizontalScope())
                 {
                     EditorGUILayout.LabelField("Pattern",
@@ -279,43 +279,45 @@ namespace GlyphLabs
                 {
                     using (new EditorGUILayout.HorizontalScope())
                     {
-                        EditorGUILayout.LabelField(
-                            rule.namePattern, GUILayout.Width(100));
+                        EditorGUILayout.LabelField(rule.namePattern, GUILayout.Width(100));
                         EditorGUILayout.LabelField(
                             rule.preset?.presetName ?? "—", GUILayout.Width(110));
-                        EditorGUILayout.LabelField(
-                            rule.note, EditorStyles.miniLabel);
+                        EditorGUILayout.LabelField(rule.note, EditorStyles.miniLabel);
                     }
                 }
 
                 EditorGUILayout.Space(2);
 
-                // Naming convention status
                 EditorGUILayout.LabelField(
                     "Naming convention: " + (ActiveProfile.enforceNamingConvention
                         ? "Enforced (imports blocked on violation)"
                         : "Warn only"),
                     EditorStyles.miniLabel);
 
+                // Phase 5 profile summary
+                EditorGUILayout.LabelField(
+                    $"Emission: {(ActiveProfile.enableEmission ? "On" : "Off")}  " +
+                    $"AO: {(ActiveProfile.enableAmbientOcclusion ? "On" : "Off")}",
+                    EditorStyles.miniLabel);
+
                 EditorGUILayout.Space(2);
             }
         }
 
-        // ── Manual reprocess ─────────────────────────────────────────────────────
+        // ── Manual actions (Reprocess + Generate Prefabs) ────────────────────────
 
-        private void DrawManualReprocess()
+        private void DrawManualActions()
         {
             EditorGUILayout.Space(4);
 
-            bool canReprocess = ActiveProfile != null;
-            GUI.enabled = canReprocess;
+            bool canAct = ActiveProfile != null;
+            GUI.enabled = canAct;
 
+            // Reprocess All FBX Files
             Color prev = GUI.backgroundColor;
-            GUI.backgroundColor = canReprocess
-                ? new Color(0.3f, 0.6f, 1f)
-                : GUI.backgroundColor;
+            GUI.backgroundColor = canAct ? new Color(0.3f, 0.6f, 1f) : GUI.backgroundColor;
 
-            if (GUILayout.Button("Reprocess All FBX Files", GUILayout.Height(36)))
+            if (GUILayout.Button("Reprocess All FBX Files", GUILayout.Height(32)))
             {
                 if (EditorUtility.DisplayDialog(
                     "Reprocess All FBX Files",
@@ -332,8 +334,61 @@ namespace GlyphLabs
             }
 
             GUI.backgroundColor = prev;
+
+            EditorGUILayout.Space(4);
+
+            // Generate Prefabs Now — Phase 5 manual trigger
+            // Available regardless of preset.generatePrefab toggle so artists can
+            // regenerate prefabs on demand without changing the auto-import setting.
+            GUI.backgroundColor = canAct ? new Color(0.55f, 0.85f, 0.55f) : GUI.backgroundColor;
+
+            if (GUILayout.Button("Generate Prefabs Now", GUILayout.Height(32)))
+            {
+                if (EditorUtility.DisplayDialog(
+                    "Generate Prefabs",
+                    $"Generate prefabs for all FBX files in the project using the " +
+                    $"'{ActiveProfile.profileName}' profile.\n" +
+                    $"Existing prefabs at the destination path will not be overwritten.\n\nContinue?",
+                    "Generate", "Cancel"))
+                {
+                    int count = GeneratePrefabsForAll(ActiveProfile);
+                    EditorUtility.DisplayDialog(
+                        "Generate Complete",
+                        $"{count} prefab(s) generated.",
+                        "OK");
+                }
+            }
+
+            GUI.backgroundColor = prev;
             GUI.enabled = true;
             EditorGUILayout.Space(8);
+        }
+
+        /// <summary>
+        /// Iterates all FBX files in the project and calls GeneratePrefab for each.
+        /// Returns the count of new prefabs created (existing ones are skipped).
+        /// </summary>
+        private static int GeneratePrefabsForAll(FBXImportProfile profile)
+        {
+            if (profile == null) return 0;
+
+            string[] allAssets = AssetDatabase.GetAllAssetPaths();
+            int count = 0;
+
+            foreach (string path in allAssets)
+            {
+                if (!path.StartsWith("Assets/")) continue;
+                if (!path.EndsWith(".fbx", System.StringComparison.OrdinalIgnoreCase)) continue;
+
+                FBXImportPreset preset = FBXImporterUtility.FindMatchingPreset(profile, path);
+                if (preset == null) continue;
+
+                string result = FBXImporterUtility.GeneratePrefab(path, preset);
+                if (result != null) count++;
+            }
+
+            AssetDatabase.Refresh();
+            return count;
         }
 
         // ── Create / Edit mode ───────────────────────────────────────────────────
@@ -345,6 +400,8 @@ namespace GlyphLabs
             _editName = "";
             _editDescription = "";
             _editEnforce = false;
+            _editEmission = false;
+            _editAO = true;
             _editPrefixes = new List<string> { "SM_", "SK_", "P_" };
             _editDefaultPreset = new FBXImportPreset { presetName = "Default" };
             _editRules = new List<FBXImportRule>();
@@ -360,6 +417,8 @@ namespace GlyphLabs
             _editName = profile.profileName;
             _editDescription = profile.description;
             _editEnforce = profile.enforceNamingConvention;
+            _editEmission = profile.enableEmission;
+            _editAO = profile.enableAmbientOcclusion;
             _editPrefixes = new List<string>(profile.validPrefixes);
             _editDefaultPreset = JsonUtility.FromJson<FBXImportPreset>(
                 JsonUtility.ToJson(profile.defaultPreset));
@@ -376,6 +435,8 @@ namespace GlyphLabs
             DrawNameAndDescription();
             PristinePipelineWindow.DrawDivider();
             DrawNamingConventionSettings();
+            PristinePipelineWindow.DrawDivider();
+            DrawProfileLevelToggles();
             PristinePipelineWindow.DrawDivider();
             DrawDefaultPreset();
             PristinePipelineWindow.DrawDivider();
@@ -409,7 +470,7 @@ namespace GlyphLabs
                     return false;
                 }
 
-                GUIStyle heading = new(EditorStyles.boldLabel) { fontSize = 13 };
+                var heading = new GUIStyle(EditorStyles.boldLabel) { fontSize = 13 };
                 EditorGUILayout.LabelField(
                     _isEditMode ? $"Edit  —  {_editTarget.profileName}" : "New Profile",
                     heading);
@@ -424,8 +485,7 @@ namespace GlyphLabs
             EditorGUI.BeginChangeCheck();
 
             _editName = EditorGUILayout.TextField(
-                new GUIContent("Profile Name", "Used as the asset filename."),
-                _editName);
+                new GUIContent("Profile Name", "Used as the asset filename."), _editName);
 
             if (string.IsNullOrWhiteSpace(_editName))
                 EditorGUILayout.HelpBox("Profile name cannot be empty.", MessageType.Error);
@@ -434,8 +494,7 @@ namespace GlyphLabs
                 new GUIContent("Description", "Short summary shown in the profile selector."),
                 _editDescription);
 
-            if (EditorGUI.EndChangeCheck())
-                _isDirty = true;
+            if (EditorGUI.EndChangeCheck()) _isDirty = true;
         }
 
         private void DrawNamingConventionSettings()
@@ -452,14 +511,40 @@ namespace GlyphLabs
                     "When off, a warning is logged but the import continues."),
                 _editEnforce);
 
-            if (EditorGUI.EndChangeCheck())
-                _isDirty = true;
+            if (EditorGUI.EndChangeCheck()) _isDirty = true;
 
             EditorGUILayout.Space(4);
             EditorGUILayout.LabelField("Valid Prefixes", EditorStyles.miniBoldLabel);
             EditorGUILayout.Space(2);
-
             _prefixReorderable?.DoLayoutList();
+        }
+
+        // ── Phase 5 — profile-level toggles ─────────────────────────────────────
+
+        private void DrawProfileLevelToggles()
+        {
+            EditorGUILayout.Space(4);
+            EditorGUILayout.LabelField("Texture Channels", EditorStyles.boldLabel);
+            EditorGUILayout.HelpBox(
+                "These toggles apply to all presets in this profile.",
+                MessageType.None);
+            EditorGUILayout.Space(2);
+
+            EditorGUI.BeginChangeCheck();
+
+            _editEmission = EditorGUILayout.Toggle(
+                new GUIContent("Enable Emission",
+                    "Search and assign _E / _Emissive textures. " +
+                    "Also enables the Emission keyword on created materials."),
+                _editEmission);
+
+            _editAO = EditorGUILayout.Toggle(
+                new GUIContent("Enable Ambient Occlusion",
+                    "Search and assign _AO textures to the Occlusion Map slot. " +
+                    "Has no effect when an ORM texture is found (AO is packed into R channel)."),
+                _editAO);
+
+            if (EditorGUI.EndChangeCheck()) _isDirty = true;
         }
 
         private void DrawDefaultPreset()
@@ -474,11 +559,16 @@ namespace GlyphLabs
             EditorGUILayout.HelpBox(
                 "Applied to any FBX that doesn't match a named rule. A warning is always logged.",
                 MessageType.None);
-
             EditorGUILayout.Space(2);
             DrawPresetFields(_editDefaultPreset);
         }
 
+        // ── Preset fields (used for default preset and per-rule presets) ─────────
+
+        /// <summary>
+        /// Draws all fields for an FBXImportPreset using layout-based controls.
+        /// Enum fields use the editor extension methods to read and write via int.
+        /// </summary>
         private void DrawPresetFields(FBXImportPreset preset)
         {
             if (preset == null) return;
@@ -487,20 +577,22 @@ namespace GlyphLabs
 
             using (new EditorGUI.IndentLevelScope(1))
             {
+                // ── Mesh settings ────────────────────────────────────────────────
+
                 preset.scaleFactor = EditorGUILayout.FloatField(
                     new GUIContent("Scale Factor",
                         "Uniform scale on import. Maya = 0.01, Blender = 1.0."),
                     preset.scaleFactor);
 
                 if (preset.scaleFactor <= 0f)
-                    EditorGUILayout.HelpBox("Scale factor must be greater than zero.",
-                        MessageType.Error);
+                    EditorGUILayout.HelpBox(
+                        "Scale factor must be greater than zero.", MessageType.Error);
 
-                preset.meshCompression = (UnityEditor.ModelImporterMeshCompression)
-                    EditorGUILayout.EnumPopup(
+                preset.SetMeshCompression(
+                    (ModelImporterMeshCompression)EditorGUILayout.EnumPopup(
                         new GUIContent("Mesh Compression",
                             "Reduces mesh size. Off preserves precision."),
-                        preset.meshCompression);
+                        preset.MeshCompression()));
 
                 preset.readWriteEnabled = EditorGUILayout.Toggle(
                     new GUIContent("Read/Write Enabled",
@@ -517,26 +609,79 @@ namespace GlyphLabs
                         "Creates a second UV channel for lightmap baking."),
                     preset.generateLightmapUVs);
 
-                preset.normals = (UnityEditor.ModelImporterNormals)
-                    EditorGUILayout.EnumPopup(
+                preset.SetNormals(
+                    (ModelImporterNormals)EditorGUILayout.EnumPopup(
                         new GUIContent("Normals",
                             "Import preserves artist intent. Calculate recomputes from geometry."),
-                        preset.normals);
+                        preset.Normals()));
 
-                preset.tangents = (UnityEditor.ModelImporterTangents)
-                    EditorGUILayout.EnumPopup(
+                preset.SetTangents(
+                    (ModelImporterTangents)EditorGUILayout.EnumPopup(
                         new GUIContent("Tangents",
                             "Calculate Mikkt Space matches most bakers."),
-                        preset.tangents);
+                        preset.Tangents()));
 
                 preset.swapUVs = EditorGUILayout.Toggle(
                     new GUIContent("Swap UVs",
                         "Swaps UV channel 0 and 1. Fixes inverted UV order from some exporters."),
                     preset.swapUVs);
+
+                EditorGUILayout.Space(4);
+                EditorGUILayout.LabelField("Material & Texture", EditorStyles.miniBoldLabel);
+
+                // ── Phase 5 — material / texture / prefab fields ─────────────────
+
+                preset.materialPrefix = EditorGUILayout.TextField(
+                    new GUIContent("Material Prefix",
+                        "Prepended to created material names — e.g. M_ produces M_Rock."),
+                    preset.materialPrefix);
+
+                preset.materialsFolder = EditorGUILayout.TextField(
+                    new GUIContent("Materials Folder",
+                        "Unity asset path where created materials are saved."),
+                    preset.materialsFolder);
+
+                if (!string.IsNullOrWhiteSpace(preset.materialsFolder)
+                    && !preset.materialsFolder.StartsWith("Assets/"))
+                    EditorGUILayout.HelpBox(
+                        "Materials folder must start with Assets/.", MessageType.Warning);
+
+                preset.texturesFolder = EditorGUILayout.TextField(
+                    new GUIContent("Textures Folder",
+                        "Unity asset path searched for matching textures. Not recursive."),
+                    preset.texturesFolder);
+
+                if (!string.IsNullOrWhiteSpace(preset.texturesFolder)
+                    && !preset.texturesFolder.StartsWith("Assets/"))
+                    EditorGUILayout.HelpBox(
+                        "Textures folder must start with Assets/.", MessageType.Warning);
+
+                EditorGUILayout.Space(4);
+                EditorGUILayout.LabelField("Prefab", EditorStyles.miniBoldLabel);
+
+                preset.prefabsFolder = EditorGUILayout.TextField(
+                    new GUIContent("Prefabs Folder",
+                        "Unity asset path where generated prefabs are saved."),
+                    preset.prefabsFolder);
+
+                if (!string.IsNullOrWhiteSpace(preset.prefabsFolder)
+                    && !preset.prefabsFolder.StartsWith("Assets/"))
+                    EditorGUILayout.HelpBox(
+                        "Prefabs folder must start with Assets/.", MessageType.Warning);
+
+                preset.generatePrefab = EditorGUILayout.Toggle(
+                    new GUIContent("Auto-Generate Prefab",
+                        "When on, a prefab is generated automatically on import. " +
+                        "Manual generation is always available in list mode."),
+                    preset.generatePrefab);
+
+                preset.lightmapStatic = EditorGUILayout.Toggle(
+                    new GUIContent("Lightmap Static",
+                        "Marks the generated prefab root as ContributeGI."),
+                    preset.lightmapStatic);
             }
 
-            if (EditorGUI.EndChangeCheck())
-                _isDirty = true;
+            if (EditorGUI.EndChangeCheck()) _isDirty = true;
         }
 
         private void DrawRulesList()
@@ -548,7 +693,6 @@ namespace GlyphLabs
                 "Drag to reorder. Each rule maps a name pattern to a set of import settings.",
                 MessageType.None);
             EditorGUILayout.Space(2);
-
             _rulesReorderable?.DoLayoutList();
         }
 
@@ -576,29 +720,25 @@ namespace GlyphLabs
         private void BuildReorderableLists()
         {
             BuildPrefixList();
-            BuildRulesList();
+            BuildRulesList_Internal();
         }
 
         private void BuildPrefixList()
         {
             _prefixReorderable = new ReorderableList(
                 _editPrefixes, typeof(string),
-                draggable: true,
-                displayHeader: false,
-                displayAddButton: true,
-                displayRemoveButton: true)
+                draggable: true, displayHeader: false,
+                displayAddButton: true, displayRemoveButton: true)
             {
                 drawElementCallback = (rect, index, isActive, isFocused) =>
                 {
                     if (index < 0 || index >= _editPrefixes.Count) return;
                     rect.y += 2;
                     rect.height = EditorGUIUtility.singleLineHeight;
-
                     EditorGUI.BeginChangeCheck();
                     _editPrefixes[index] = EditorGUI.TextField(rect, _editPrefixes[index]);
                     if (EditorGUI.EndChangeCheck()) _isDirty = true;
                 },
-
                 onAddCallback = _ => { _editPrefixes.Add(""); _isDirty = true; }
             };
             _prefixReorderable.onRemoveCallback = _ =>
@@ -608,135 +748,157 @@ namespace GlyphLabs
             };
         }
 
-        private void BuildRulesList()
+        private void BuildRulesList_Internal()
         {
+            // Each rule element expands to show all preset fields via EditorGUI rect-based
+            // drawing. The height callback accounts for validation messages.
+            // Enum fields use FBXImportPresetEditorExtensions (SetMeshCompression etc.)
+            // rather than direct casts.
+
+            const float lineH = 18f;   // EditorGUIUtility.singleLineHeight
+            const float spacing = 20f;   // lineH + 2
+
+            // Count of fixed rows per rule: pattern/note, preset name, scale/compression,
+            // toggles row 1, normals/tangents, swap uvs, mat prefix, mat folder,
+            // tex folder, prefab folder, generate prefab, lightmap static = 12 rows
+            const int FixedRows = 12;
+
             _rulesReorderable = new ReorderableList(
                 _editRules, typeof(FBXImportRule),
-                draggable: true,
-                displayHeader: true,
-                displayAddButton: true,
-                displayRemoveButton: true)
+                draggable: true, displayHeader: true,
+                displayAddButton: true, displayRemoveButton: true)
             {
                 drawHeaderCallback = rect =>
                     EditorGUI.LabelField(rect, "Pattern → Preset Settings",
                         EditorStyles.miniBoldLabel),
 
                 drawElementCallback = (rect, index, isActive, isFocused) =>
+                {
+                    if (index < 0 || index >= _editRules.Count) return;
+
+                    FBXImportRule rule = _editRules[index];
+                    float y = rect.y + 2f;
+                    float w = rect.width;
+
+                    EditorGUI.BeginChangeCheck();
+
+                    // Row 0: pattern + note
+                    EditorGUI.LabelField(new Rect(rect.x, y, 88f, lineH), "Pattern");
+                    rule.namePattern = EditorGUI.TextField(
+                        new Rect(rect.x + 90f, y, w * 0.4f, lineH), rule.namePattern);
+                    EditorGUI.LabelField(new Rect(rect.x + w * 0.4f + 94f, y, 34f, lineH), "Note");
+                    rule.note = EditorGUI.TextField(
+                        new Rect(rect.x + w * 0.4f + 130f, y, w - w * 0.4f - 130f, lineH), rule.note);
+                    y += spacing;
+
+                    // Row 1: preset name
+                    EditorGUI.LabelField(new Rect(rect.x, y, 88f, lineH), "Preset Name");
+                    rule.preset.presetName = EditorGUI.TextField(
+                        new Rect(rect.x + 90f, y, w - 92f, lineH), rule.preset.presetName);
+                    y += spacing;
+
+                    // Row 2: scale + compression
+                    EditorGUI.LabelField(new Rect(rect.x, y, 48f, lineH), "Scale");
+                    rule.preset.scaleFactor = EditorGUI.FloatField(
+                        new Rect(rect.x + 50f, y, 50f, lineH), rule.preset.scaleFactor);
+                    EditorGUI.LabelField(new Rect(rect.x + 112f, y, 88f, lineH), "Compression");
+                    rule.preset.SetMeshCompression(
+                        (ModelImporterMeshCompression)EditorGUI.EnumPopup(
+                            new Rect(rect.x + 202f, y, w - 204f, lineH),
+                            rule.preset.MeshCompression()));
+                    y += spacing;
+
+                    // Row 3: toggle row 1
+                    rule.preset.readWriteEnabled = EditorGUI.ToggleLeft(
+                        new Rect(rect.x, y, 110f, lineH), "Read/Write", rule.preset.readWriteEnabled);
+                    rule.preset.optimizeMesh = EditorGUI.ToggleLeft(
+                        new Rect(rect.x + 114f, y, 120f, lineH), "Optimize Mesh", rule.preset.optimizeMesh);
+                    rule.preset.generateLightmapUVs = EditorGUI.ToggleLeft(
+                        new Rect(rect.x + 238f, y, w - 240f, lineH), "Lightmap UVs", rule.preset.generateLightmapUVs);
+                    y += spacing;
+
+                    // Row 4: normals + tangents
+                    EditorGUI.LabelField(new Rect(rect.x, y, 56f, lineH), "Normals");
+                    rule.preset.SetNormals(
+                        (ModelImporterNormals)EditorGUI.EnumPopup(
+                            new Rect(rect.x + 58f, y, 130f, lineH), rule.preset.Normals()));
+                    EditorGUI.LabelField(new Rect(rect.x + 198f, y, 58f, lineH), "Tangents");
+                    rule.preset.SetTangents(
+                        (ModelImporterTangents)EditorGUI.EnumPopup(
+                            new Rect(rect.x + 258f, y, w - 260f, lineH), rule.preset.Tangents()));
+                    y += spacing;
+
+                    // Row 5: swap UVs
+                    rule.preset.swapUVs = EditorGUI.ToggleLeft(
+                        new Rect(rect.x, y, 130f, lineH), "Swap UVs", rule.preset.swapUVs);
+                    y += spacing;
+
+                    // ── Phase 5 fields ───────────────────────────────────────────
+
+                    // Row 6: material prefix
+                    EditorGUI.LabelField(new Rect(rect.x, y, 100f, lineH), "Mat Prefix");
+                    rule.preset.materialPrefix = EditorGUI.TextField(
+                        new Rect(rect.x + 102f, y, w - 104f, lineH), rule.preset.materialPrefix);
+                    y += spacing;
+
+                    // Row 7: materials folder
+                    EditorGUI.LabelField(new Rect(rect.x, y, 100f, lineH), "Materials Folder");
+                    rule.preset.materialsFolder = EditorGUI.TextField(
+                        new Rect(rect.x + 102f, y, w - 104f, lineH), rule.preset.materialsFolder);
+                    y += spacing;
+
+                    // Row 8: textures folder
+                    EditorGUI.LabelField(new Rect(rect.x, y, 100f, lineH), "Textures Folder");
+                    rule.preset.texturesFolder = EditorGUI.TextField(
+                        new Rect(rect.x + 102f, y, w - 104f, lineH), rule.preset.texturesFolder);
+                    y += spacing;
+
+                    // Row 9: prefabs folder
+                    EditorGUI.LabelField(new Rect(rect.x, y, 100f, lineH), "Prefabs Folder");
+                    rule.preset.prefabsFolder = EditorGUI.TextField(
+                        new Rect(rect.x + 102f, y, w - 104f, lineH), rule.preset.prefabsFolder);
+                    y += spacing;
+
+                    // Row 10: generate prefab + lightmap static
+                    rule.preset.generatePrefab = EditorGUI.ToggleLeft(
+                        new Rect(rect.x, y, 160f, lineH), "Auto-Generate Prefab", rule.preset.generatePrefab);
+                    rule.preset.lightmapStatic = EditorGUI.ToggleLeft(
+                        new Rect(rect.x + 164f, y, w - 166f, lineH), "Lightmap Static", rule.preset.lightmapStatic);
+                    y += spacing;
+
+                    if (EditorGUI.EndChangeCheck()) _isDirty = true;
+
+                    // Validation messages
+                    var messages = FBXImporterUtility.ValidateRule(rule);
+                    foreach (string msg in messages)
                     {
-                        if (index < 0 || index >= _editRules.Count) return;
-
-                        FBXImportRule rule = _editRules[index];
-                        float y = rect.y + 2f;
-                        float lineH = EditorGUIUtility.singleLineHeight;
-                        float spacing = lineH + 2f;
-
-                        // Name pattern + note on first line
-                        EditorGUI.BeginChangeCheck();
-
-                        EditorGUI.LabelField(
-                            new Rect(rect.x, y, 90f, lineH), "Pattern");
-                        rule.namePattern = EditorGUI.TextField(
-                            new Rect(rect.x + 92f, y, rect.width * 0.4f, lineH),
-                            rule.namePattern);
-
-                        EditorGUI.LabelField(
-                            new Rect(rect.x + rect.width * 0.4f + 96f, y, 36f, lineH), "Note");
-                        rule.note = EditorGUI.TextField(
-                            new Rect(rect.x + rect.width * 0.4f + 134f, y,
-                                rect.width - rect.width * 0.4f - 134f, lineH),
-                            rule.note);
-
-                        y += spacing;
-
-                        // Preset name
-                        EditorGUI.LabelField(new Rect(rect.x, y, 90f, lineH), "Preset Name");
-                        rule.preset.presetName = EditorGUI.TextField(
-                            new Rect(rect.x + 92f, y, rect.width - 94f, lineH),
-                            rule.preset.presetName);
-
-                        y += spacing;
-
-                        // Scale + compression on one row
-                        EditorGUI.LabelField(new Rect(rect.x, y, 80f, lineH), "Scale");
-                        rule.preset.scaleFactor = EditorGUI.FloatField(
-                            new Rect(rect.x + 82f, y, 50f, lineH),
-                            rule.preset.scaleFactor);
-
-                        EditorGUI.LabelField(new Rect(rect.x + 144f, y, 90f, lineH), "Compression");
-                        rule.preset.meshCompression =
-                            (UnityEditor.ModelImporterMeshCompression)EditorGUI.EnumPopup(
-                                new Rect(rect.x + 236f, y, rect.width - 238f, lineH),
-                                rule.preset.meshCompression);
-
-                        y += spacing;
-
-                        // Toggle row 1
-                        rule.preset.readWriteEnabled = EditorGUI.ToggleLeft(
-                            new Rect(rect.x, y, 130f, lineH),
-                            "Read/Write", rule.preset.readWriteEnabled);
-                        rule.preset.optimizeMesh = EditorGUI.ToggleLeft(
-                            new Rect(rect.x + 134f, y, 130f, lineH),
-                            "Optimize Mesh", rule.preset.optimizeMesh);
-                        rule.preset.generateLightmapUVs = EditorGUI.ToggleLeft(
-                            new Rect(rect.x + 268f, y, rect.width - 270f, lineH),
-                            "Lightmap UVs", rule.preset.generateLightmapUVs);
-
-                        y += spacing;
-
-                        // Normals + Tangents
-                        EditorGUI.LabelField(new Rect(rect.x, y, 60f, lineH), "Normals");
-                        rule.preset.normals = (UnityEditor.ModelImporterNormals)EditorGUI.EnumPopup(
-                            new Rect(rect.x + 62f, y, 130f, lineH),
-                            rule.preset.normals);
-
-                        EditorGUI.LabelField(new Rect(rect.x + 202f, y, 60f, lineH), "Tangents");
-                        rule.preset.tangents = (UnityEditor.ModelImporterTangents)EditorGUI.EnumPopup(
-                            new Rect(rect.x + 264f, y, rect.width - 266f, lineH),
-                            rule.preset.tangents);
-
-                        y += spacing;
-
-                        // Swap UVs
-                        rule.preset.swapUVs = EditorGUI.ToggleLeft(
-                            new Rect(rect.x, y, 130f, lineH),
-                            "Swap UVs", rule.preset.swapUVs);
-
-                        if (EditorGUI.EndChangeCheck()) _isDirty = true;
-
-                        // Validation
-                        var messages = FBXImporterUtility.ValidateRule(rule);
-                        y += spacing;
-                        foreach (string msg in messages)
-                        {
-                            EditorGUI.HelpBox(
-                                new Rect(rect.x, y, rect.width, lineH + 4), msg, MessageType.Warning);
-                            y += lineH + 6f;
-                        }
-                    },
+                        EditorGUI.HelpBox(
+                            new Rect(rect.x, y, w, lineH + 4), msg, MessageType.Warning);
+                        y += lineH + 6f;
+                    }
+                },
 
                 elementHeightCallback = index =>
+                {
+                    float height = FixedRows * spacing + 8f;
+
+                    if (index >= 0 && index < _editRules.Count)
                     {
-                        // pattern row + preset name + scale/compression + toggles + normals/tangents
-                        // + swap uvs = 6 rows
-                        float height = (EditorGUIUtility.singleLineHeight + 2f) * 7f + 8f;
+                        var messages = FBXImporterUtility.ValidateRule(_editRules[index]);
+                        height += messages.Count * (lineH + 6f);
+                    }
 
-                        if (index >= 0 && index < _editRules.Count)
-                        {
-                            var messages = FBXImporterUtility.ValidateRule(_editRules[index]);
-                            height += messages.Count * (EditorGUIUtility.singleLineHeight + 6f);
-                        }
-
-                        return height;
-                    },
+                    return height;
+                },
 
                 onAddCallback = _ =>
+                {
+                    _editRules.Add(new FBXImportRule
                     {
-                        _editRules.Add(new FBXImportRule
-                        {
-                            preset = new FBXImportPreset { presetName = "New Preset" }
-                        });
-                        _isDirty = true;
-                    }
+                        preset = new FBXImportPreset { presetName = "New Preset" }
+                    });
+                    _isDirty = true;
+                }
             };
 
             _rulesReorderable.onRemoveCallback = _ =>
@@ -789,6 +951,8 @@ namespace GlyphLabs
                 _editTarget.profileName = _editName.Trim();
                 _editTarget.description = _editDescription.Trim();
                 _editTarget.enforceNamingConvention = _editEnforce;
+                _editTarget.enableEmission = _editEmission;
+                _editTarget.enableAmbientOcclusion = _editAO;
                 _editTarget.validPrefixes = new List<string>(_editPrefixes);
                 _editTarget.defaultPreset = _editDefaultPreset;
                 _editTarget.SetRules(_editRules);
@@ -799,6 +963,8 @@ namespace GlyphLabs
             p.profileName = _editName.Trim();
             p.description = _editDescription.Trim();
             p.enforceNamingConvention = _editEnforce;
+            p.enableEmission = _editEmission;
+            p.enableAmbientOcclusion = _editAO;
             p.validPrefixes = new List<string>(_editPrefixes);
             p.defaultPreset = _editDefaultPreset;
             p.SetRules(_editRules);
