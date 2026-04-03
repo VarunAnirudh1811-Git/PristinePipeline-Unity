@@ -4,7 +4,7 @@ using UnityEditor;
 using UnityEditorInternal;
 using UnityEngine;
 
-namespace GlyphLabs
+namespace GlyphLabs.PristinePipeline
 {
     /// <summary>
     /// Draws the Asset Organizer tab inside PristinePipelineWindow.

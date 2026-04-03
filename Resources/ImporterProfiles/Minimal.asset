@@ -1,0 +1,75 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c3f231cfe1e2fe045995a7718bf06c69, type: 3}
+  m_Name: Minimal
+  m_EditorClassIdentifier: GlyphLabs.PristinePipeline.Runtime::GlyphLabs.PristinePipeline.FBXImportProfile
+  profileName: Minimal
+  description: FBX import settings aligned with the Minimal folder structure.
+  enforceNamingConvention: 0
+  validPrefixes:
+  - SM_
+  - SK_
+  defaultPreset:
+    presetName: Default
+    scaleFactor: 1
+    meshCompressionInt: 0
+    readWriteEnabled: 0
+    optimizeMesh: 1
+    generateLightmapUVs: 0
+    normalsInt: 0
+    tangentsInt: 3
+    swapUVs: 0
+    materialPrefix: M_
+    materialsFolder: Assets/Art/Materials
+    texturesFolder: Assets/Art/Textures
+    prefabsFolder: Assets/Level/Prefabs
+    generatePrefab: 1
+    lightmapStatic: 0
+  enableEmission: 0
+  enableAmbientOcclusion: 1
+  rules:
+  - namePattern: SM_*
+    preset:
+      presetName: Static Mesh
+      scaleFactor: 1
+      meshCompressionInt: 0
+      readWriteEnabled: 0
+      optimizeMesh: 1
+      generateLightmapUVs: 1
+      normalsInt: 1
+      tangentsInt: 3
+      swapUVs: 0
+      materialPrefix: M_
+      materialsFolder: Assets/Art/Materials
+      texturesFolder: Assets/Art/Textures
+      prefabsFolder: Assets/Level/Prefabs
+      generatePrefab: 1
+      lightmapStatic: 1
+    note: Static props and environment meshes
+  - namePattern: SK_*
+    preset:
+      presetName: Skeletal Mesh
+      scaleFactor: 1
+      meshCompressionInt: 0
+      readWriteEnabled: 1
+      optimizeMesh: 1
+      generateLightmapUVs: 0
+      normalsInt: 1
+      tangentsInt: 3
+      swapUVs: 0
+      materialPrefix: M_
+      materialsFolder: Assets/Art/Materials
+      texturesFolder: Assets/Art/Textures
+      prefabsFolder: Assets/Level/Prefabs
+      generatePrefab: 1
+      lightmapStatic: 0
+    note: Characters and animated assets

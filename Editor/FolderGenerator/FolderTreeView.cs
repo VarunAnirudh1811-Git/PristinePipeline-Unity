@@ -4,7 +4,7 @@ using UnityEditor;
 using UnityEditor.IMGUI.Controls;
 using UnityEngine;
 
-namespace GlyphLabs
+namespace GlyphLabs.PristinePipeline
 {
     /// <summary>
     /// Displays a FolderTemplate's paths as a collapsible folder hierarchy.

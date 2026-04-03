@@ -1,0 +1,69 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ae9f354e02256f245b4d9e9e970a2d67, type: 3}
+  m_Name: Minimal
+  m_EditorClassIdentifier: GlyphLabs.PristinePipeline.Runtime::GlyphLabs.PristinePipeline.AssetMappingProfile
+  profileName: Minimal
+  description: Asset organization rules aligned with the Minimal folder structure.
+  rules:
+  - extension: fbx
+    namePattern: SM_*
+    destinationFolder: Assets/Art/Models
+    note: Static mesh models
+  - extension: fbx
+    namePattern: SK_*
+    destinationFolder: Assets/Art/Models
+    note: Skeletal meshes
+  - extension: png
+    namePattern: '*_B'
+    destinationFolder: Assets/Art/Textures
+    note: Base color textures
+  - extension: png
+    namePattern: '*_N'
+    destinationFolder: Assets/Art/Textures
+    note: Normal maps
+  - extension: png
+    namePattern: '*_MS'
+    destinationFolder: Assets/Art/Textures
+    note: Packed ORM textures
+  - extension: png
+    namePattern: '*_UI_*'
+    destinationFolder: Assets/Art/UI/Graphics
+    note: UI graphics
+  - extension: ttf
+    namePattern: 
+    destinationFolder: Assets/Art/UI/Fonts
+    note: Font files
+  - extension: shadergraph
+    namePattern: 
+    destinationFolder: Assets/Art/ShaderGraphs
+    note: Shader Graph assets
+  - extension: vfx
+    namePattern: 
+    destinationFolder: Assets/Art/VisualFXGraphs
+    note: VFX Graph assets
+  - extension: wav
+    namePattern: 
+    destinationFolder: Assets/Audio/SFX
+    note: Sound effects
+  - extension: mp3
+    namePattern: 
+    destinationFolder: Assets/Audio/Music
+    note: Music files
+  - extension: prefab
+    namePattern: 
+    destinationFolder: Assets/Level/Prefabs
+    note: Prefabs
+  - extension: unity
+    namePattern: 
+    destinationFolder: Assets/Level/Scenes
+    note: Unity scenes

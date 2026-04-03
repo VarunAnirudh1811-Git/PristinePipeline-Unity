@@ -1,0 +1,113 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c3f231cfe1e2fe045995a7718bf06c69, type: 3}
+  m_Name: Standard
+  m_EditorClassIdentifier: GlyphLabs.PristinePipeline.Runtime::GlyphLabs.PristinePipeline.FBXImportProfile
+  profileName: Standard
+  description: FBX import settings aligned with categorized models and centralized
+    textures/materials.
+  enforceNamingConvention: 1
+  validPrefixes:
+  - CH_
+  - ENV_
+  - PR_
+  defaultPreset:
+    presetName: Default
+    scaleFactor: 1
+    meshCompressionInt: 0
+    readWriteEnabled: 0
+    optimizeMesh: 1
+    generateLightmapUVs: 0
+    normalsInt: 1
+    tangentsInt: 3
+    swapUVs: 0
+    materialPrefix: M_
+    materialsFolder: Assets/Art/Materials
+    texturesFolder: Assets/Art/Textures
+    prefabsFolder: Assets/Level/Prefabs/Props
+    generatePrefab: 1
+    lightmapStatic: 0
+  enableEmission: 0
+  enableAmbientOcclusion: 1
+  rules:
+  - namePattern: CH_*
+    preset:
+      presetName: Character
+      scaleFactor: 1
+      meshCompressionInt: 1
+      readWriteEnabled: 1
+      optimizeMesh: 1
+      generateLightmapUVs: 0
+      normalsInt: 1
+      tangentsInt: 3
+      swapUVs: 0
+      materialPrefix: M_
+      materialsFolder: Assets/Art/Materials
+      texturesFolder: Assets/Art/Textures
+      prefabsFolder: Assets/Level/Prefabs/Characters
+      generatePrefab: 1
+      lightmapStatic: 0
+    note: Characters and animated meshes
+  - namePattern: ENV_*
+    preset:
+      presetName: Environment
+      scaleFactor: 1
+      meshCompressionInt: 2
+      readWriteEnabled: 0
+      optimizeMesh: 1
+      generateLightmapUVs: 1
+      normalsInt: 1
+      tangentsInt: 3
+      swapUVs: 0
+      materialPrefix: M_
+      materialsFolder: Assets/Art/Materials
+      texturesFolder: Assets/Art/Textures
+      prefabsFolder: Assets/Level/Prefabs/Environment
+      generatePrefab: 1
+      lightmapStatic: 1
+    note: Static environment meshes
+  - namePattern: PR_*
+    preset:
+      presetName: Props
+      scaleFactor: 1
+      meshCompressionInt: 2
+      readWriteEnabled: 0
+      optimizeMesh: 1
+      generateLightmapUVs: 1
+      normalsInt: 1
+      tangentsInt: 3
+      swapUVs: 0
+      materialPrefix: M_
+      materialsFolder: Assets/Art/Materials
+      texturesFolder: Assets/Art/Textures
+      prefabsFolder: Assets/Level/Prefabs/Props
+      generatePrefab: 1
+      lightmapStatic: 1
+    note: Props and small assets
+  - namePattern: COL_*
+    preset:
+      presetName: Collider
+      scaleFactor: 1
+      meshCompressionInt: 3
+      readWriteEnabled: 0
+      optimizeMesh: 1
+      generateLightmapUVs: 0
+      normalsInt: 0
+      tangentsInt: 0
+      swapUVs: 0
+      materialPrefix: M_
+      materialsFolder: Assets/Art/Materials
+      texturesFolder: Assets/Art/Textures
+      prefabsFolder: Assets/Art/Prefabs
+      generatePrefab: 0
+      lightmapStatic: 0
+    note: Collision-only meshes

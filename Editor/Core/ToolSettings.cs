@@ -1,6 +1,7 @@
 ﻿using UnityEditor;
+using UnityEngine.Audio;
 
-namespace GlyphLabs
+namespace GlyphLabs.PristinePipeline
 {
     /// <summary>
     /// Centralized EditorPrefs wrapper for all tools under Pristine Pipeline.
@@ -10,7 +11,11 @@ namespace GlyphLabs
     public static class ToolSettings
     {
         // ── Key helpers ──────────────────────────────────────────────────────────
-
+        ///<summary>
+        ///Creates a clear, standardized format for keys by centralizing how they’re constructed. 
+        ///This improves readability by making keys predictable, reduces duplication of string logic across the codebase, 
+        ///and makes future changes (like renaming the prefix) easy to manage in one place.
+        ///</summary>
         private static string Key(string suffix) => ToolInfo.SettingsPrefix + "." + suffix;
 
         // ── Active tab ───────────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 ﻿using UnityEditor;
 
-namespace GlyphLabs
+namespace GlyphLabs.PristinePipeline
 {
     /// <summary>
     /// Editor-only typed accessors for the int-backed ModelImporter enum fields

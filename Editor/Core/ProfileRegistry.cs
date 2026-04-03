@@ -1,7 +1,7 @@
 ﻿using UnityEditor;
 using UnityEngine;
 
-namespace GlyphLabs
+namespace GlyphLabs.PristinePipeline
 {
     /// <summary>
     /// Resolves the active ScriptableObject profile for each tool.
@@ -64,7 +64,7 @@ namespace GlyphLabs
         public static AssetMappingProfile  GetActiveOrganizerProfile()  => Load<AssetMappingProfile>(ToolSettings.Organizer_ActiveProfileGuid);
         public static void            SetActiveOrganizerProfile(AssetMappingProfile p) => Save(p, g => ToolSettings.Organizer_ActiveProfileGuid = g);
 
-        // FBX Importer — placeholder, uncommented in Phase 4
+        // FBX Importer 
         public static FBXImportProfile   GetActiveImportProfile()     => Load<FBXImportProfile>(ToolSettings.FBX_ActiveProfileGuid);
         public static void            SetActiveImportProfile(FBXImportProfile p) => Save(p, g => ToolSettings.FBX_ActiveProfileGuid = g);
     }

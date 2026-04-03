@@ -5,7 +5,7 @@ using System.Linq;
 using UnityEditor;
 using UnityEngine;
 
-namespace GlyphLabs
+namespace GlyphLabs.PristinePipeline
 {
     /// <summary>
     /// Stateless utility methods for the Folder Generator.
@@ -55,7 +55,10 @@ namespace GlyphLabs
                 var template = AssetDatabase.LoadAssetAtPath<FolderTemplate>(path);
 
                 if (template != null && !results.Contains(template))
+                {
                     results.Add(template);
+                    template.isBuiltIn = path.StartsWith("Packages/");
+                }
             }
         }
 

@@ -1,0 +1,90 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ae9f354e02256f245b4d9e9e970a2d67, type: 3}
+  m_Name: Standard
+  m_EditorClassIdentifier: GlyphLabs.PristinePipeline.Runtime::GlyphLabs.PristinePipeline.AssetMappingProfile
+  profileName: Standard
+  description: Clean mapping aligned with categorized models and centralized textures
+    and materials.
+  rules:
+  - extension: fbx
+    namePattern: CH_*
+    destinationFolder: Assets/Art/Models/Characters
+    note: Character models
+  - extension: fbx
+    namePattern: ENV_*
+    destinationFolder: Assets/Art/Models/Environment
+    note: Environment models
+  - extension: fbx
+    namePattern: PR_*
+    destinationFolder: Assets/Art/Models/Props
+    note: Prop models
+  - extension: fbx
+    namePattern: COL_*
+    destinationFolder: Assets/Art/Models/Colliders
+    note: Colliders
+  - extension: png
+    namePattern: T_*
+    destinationFolder: Assets/Art/Textures
+    note: All textures (BaseColor, Normal, MS, etc.)
+  - extension: mat
+    namePattern: 
+    destinationFolder: Assets/Art/Materials
+    note: All materials
+  - extension: shader
+    namePattern: 
+    destinationFolder: Assets/Scripts/Shaders
+    note: HLSL shaders
+  - extension: shadergraph
+    namePattern: 
+    destinationFolder: Assets/Art/ShaderGraphs
+    note: Shader Graph assets
+  - extension: vfx
+    namePattern: 
+    destinationFolder: Assets/Art/VisualFXGraphs
+    note: VFX Graph assets
+  - extension: prefab
+    namePattern: CH_*
+    destinationFolder: Assets/Level/Prefabs/Characters
+    note: Character prefabs
+  - extension: prefab
+    namePattern: ENV_*
+    destinationFolder: Assets/Level/Prefabs/Environment
+    note: Environment prefabs
+  - extension: prefab
+    namePattern: PR_*
+    destinationFolder: Assets/Level/Prefabs/Props
+    note: Prop prefabs
+  - extension: prefab
+    namePattern: UI_*
+    destinationFolder: Assets/Level/Prefabs/UI
+    note: UI prefabs
+  - extension: unity
+    namePattern: 
+    destinationFolder: Assets/Level/Scenes
+    note: Scenes
+  - extension: wav
+    namePattern: VO_*
+    destinationFolder: Assets/Audio/Dialogue
+    note: Dialogue
+  - extension: wav
+    namePattern: 
+    destinationFolder: Assets/Audio/SFX
+    note: Sound effects
+  - extension: mp3
+    namePattern: 
+    destinationFolder: Assets/Audio/Music
+    note: Music
+  - extension: ogg
+    namePattern: 
+    destinationFolder: Assets/Audio/Ambience
+    note: Ambience

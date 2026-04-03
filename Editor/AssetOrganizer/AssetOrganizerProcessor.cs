@@ -1,7 +1,7 @@
 using UnityEditor;
 using UnityEngine;
 
-namespace GlyphLabs
+namespace GlyphLabs.PristinePipeline
 {
     /// <summary>
     /// Runs automatically when new assets are imported into the project.

@@ -5,7 +5,7 @@ using System.Linq;
 using UnityEditor;
 using UnityEngine;
 
-namespace GlyphLabs
+namespace GlyphLabs.PristinePipeline
 {
     /// <summary>
     /// Stateless utility methods for the FBX Importer.
@@ -45,7 +45,7 @@ namespace GlyphLabs
         {
             var profiles = new List<FBXImportProfile>();
             string userPath = ToolSettings.FBX_ProfileSavePath;
-            string builtInPath = ToolInfo.BuiltInProfilePath;
+            string builtInPath = ToolInfo.BuiltInImporterProfilePath;
 
             if (AssetDatabase.IsValidFolder(builtInPath))
                 LoadProfilesFromPath(builtInPath, profiles);
@@ -200,9 +200,18 @@ namespace GlyphLabs
                 profile.enforceNamingConvention = data.enforceNamingConvention;
                 profile.validPrefixes = data.validPrefixes ?? new List<string>();
                 profile.defaultPreset = data.defaultPreset ?? new FBXImportPreset { presetName = "Default" };
+                SanitizePreset(profile.defaultPreset);
                 profile.enableEmission = data.enableEmission;
                 profile.enableAmbientOcclusion = data.enableAmbientOcclusion;
-                profile.SetRules(data.rules ?? new List<FBXImportRule>());
+
+                var rules = data.rules ?? new List<FBXImportRule>();
+
+                foreach (var rule in rules)
+                {
+                    if (rule?.preset != null)
+                        SanitizePreset(rule.preset);
+                }
+                profile.SetRules(rules);
 
                 AssetDatabase.CreateAsset(profile, assetPath);
                 AssetDatabase.Refresh();
@@ -216,6 +225,26 @@ namespace GlyphLabs
                 EditorUtility.DisplayDialog("Import Failed", "An error occurred while reading the file.", "OK");
                 return null;
             }
+        }
+
+        private static void SanitizePreset(FBXImportPreset preset)
+        {
+            if (preset == null) return;
+
+            if (string.IsNullOrWhiteSpace(preset.materialPrefix))
+                preset.materialPrefix = "M_";
+
+            if (string.IsNullOrWhiteSpace(preset.materialsFolder))
+                preset.materialsFolder = "Assets/Art/Materials";
+
+            if (string.IsNullOrWhiteSpace(preset.texturesFolder))
+                preset.texturesFolder = "Assets/Art/Textures";
+
+            if (string.IsNullOrWhiteSpace(preset.prefabsFolder))
+                preset.prefabsFolder = "Assets/Art/Prefabs";
+
+            if (preset.scaleFactor <= 0f)
+                preset.scaleFactor = 1.0f;
         }
 
         [Serializable]
@@ -355,6 +384,9 @@ namespace GlyphLabs
             string fbxAssetPath)
         {
             if (importedModel == null || preset == null) return new List<Material>();
+
+            if (string.IsNullOrWhiteSpace(preset.materialsFolder))
+                return new List<Material>();
 
             string folder = preset.materialsFolder.TrimEnd('/');
             EnsureAssetFolderExists(folder);

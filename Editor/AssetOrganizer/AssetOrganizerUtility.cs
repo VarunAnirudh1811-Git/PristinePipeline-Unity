@@ -5,7 +5,7 @@ using System.Linq;
 using UnityEditor;
 using UnityEngine;
 
-namespace GlyphLabs
+namespace GlyphLabs.PristinePipeline
 {
     /// <summary>
     /// Stateless utility methods for the Asset Organizer.
@@ -25,7 +25,7 @@ namespace GlyphLabs
         {
             var profiles = new List<AssetMappingProfile>();
             string userPath = ToolSettings.Organizer_ProfileSavePath;
-            string builtInPath = ToolInfo.BuiltInProfilePath;
+            string builtInPath = ToolInfo.BuiltInMappingProfilePath;
 
             if (AssetDatabase.IsValidFolder(builtInPath))
             {

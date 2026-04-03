@@ -1,6 +1,6 @@
 {
     "name": "GlyphLabs.PristinePipeline.Runtime",
-    "rootNamespace": "GlyphLabs",
+    "rootNamespace": "GlyphLabs.PristinePipeline",
     "references": [],
     "includePlatforms": [],
     "excludePlatforms": [],

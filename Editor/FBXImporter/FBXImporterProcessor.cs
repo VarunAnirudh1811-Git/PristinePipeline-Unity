@@ -2,7 +2,7 @@
 using UnityEditor;
 using UnityEngine;
 
-namespace GlyphLabs
+namespace GlyphLabs.PristinePipeline
 {
     /// <summary>
     /// Intercepts FBX imports via Unity's AssetPostprocessor.

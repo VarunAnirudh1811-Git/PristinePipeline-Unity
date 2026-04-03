@@ -1,0 +1,51 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0518dc55db36d9f4fa8266284823a164, type: 3}
+  m_Name: Standard
+  m_EditorClassIdentifier: GlyphLabs.PristinePipeline.Runtime::GlyphLabs.PristinePipeline.FolderTemplate
+  templateName: Standard
+  description: Clean and scalable production structure with categorized models and
+    centralized textures and materials.
+  folderPaths:
+  - Art/Models/Characters
+  - Art/Models/Environment
+  - Art/Models/Props
+  - Art/Models/Colliders
+  - Art/Textures
+  - Art/Materials
+  - Art/Animations
+  - Art/ShaderGraphs
+  - Art/VisualFXGraphs
+  - Art/UI/Graphics
+  - Art/UI/Fonts
+  - Level/Scenes
+  - Level/Prefabs/Characters
+  - Level/Prefabs/Environment
+  - Level/Prefabs/Props
+  - Level/Prefabs/UI
+  - Level/Lighting
+  - Audio/SFX
+  - Audio/Music
+  - Audio/Ambience
+  - Audio/Dialogue
+  - Scripts/Core
+  - Scripts/Managers
+  - Scripts/Systems
+  - Scripts/Gameplay
+  - Scripts/AI
+  - Scripts/Input
+  - Scripts/Utilities
+  - Scripts/Shaders
+  - Data/ScriptableObjects
+  - Data/Configs
+  - ThirdParty
+  isBuiltIn: 0
