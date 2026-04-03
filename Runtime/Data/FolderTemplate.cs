@@ -19,7 +19,7 @@ namespace GlyphLabs.PristinePipeline
         public string description = "";
 
         [SerializeField]
-        private List<string> folderPaths = new List<string>();
+        private List<string> folderPaths = new ();
 
         /// <summary>
         /// Hidden from the Inspector — set only by GlyphLabs on built-in package templates.

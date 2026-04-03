@@ -8,18 +8,17 @@ namespace GlyphLabs.PristinePipeline
 {
     /// <summary>
     /// Draws the FBX Importer tab inside PristinePipelineWindow.
-    /// Owns the tab's UI state and mode transitions (list ↔ create/edit).
-    /// All profile operations and import logic are delegated to FBXImporterUtility.
     ///
-    /// Phase 5 additions:
-    ///   - DrawPresetFields now includes material prefix, folders, generate prefab
-    ///     toggle, and lightmap static toggle.
-    ///   - Profile create/edit mode shows emission and AO profile-level toggles.
-    ///   - List mode has a manual "Generate Prefabs Now" button.
-    ///
-    /// Enum fields (MeshCompression, Normals, Tangents) are read/written via
-    /// FBXImportPresetEditorExtensions rather than direct casts, keeping the
-    /// Runtime type free of UnityEditor dependencies.
+    /// UX changes (v1.1):
+    ///   - Primary actions (Reprocess + Generate Prefabs) promoted to the top of
+    ///     the tab, immediately below the enable toggle.
+    ///   - Rules preview is now wrapped in a fixed-height scroll view.
+    ///   - Profile management section is collapsible to reduce noise once profiles
+    ///     are configured.
+    ///   - "Select Asset in Project" moved inline with the profile dropdown.
+    ///   - Enable toggle shows coloured status pill.
+    ///   - Reprocess and Generate Prefabs actions have clear visual hierarchy
+    ///     (primary vs secondary).
     /// </summary>
     public class FBXImporterTab
     {
@@ -33,6 +32,13 @@ namespace GlyphLabs.PristinePipeline
         private List<FBXImportProfile> _profiles = new();
         private string[] _profileNames = new string[0];
         private int _selectedIndex = 0;
+
+        private bool _profileManagementExpanded = false;
+
+        // ── Rules preview scroll ─────────────────────────────────────────────────
+
+        private Vector2 _rulesScrollPos;
+        private const float RulesPreviewMaxHeight = 180f;
 
         // ── Create / Edit state ──────────────────────────────────────────────────
 
@@ -71,21 +77,29 @@ namespace GlyphLabs.PristinePipeline
 
         private void DrawListMode(EditorWindow parentWindow)
         {
-            DrawEnableToggle();
+            // 1 — Status + primary actions (always visible, no scroll needed)
+            DrawEnableToggleAndPrimaryActions();
             PristinePipelineWindow.DrawDivider();
-            DrawProfileSelector(parentWindow);
+
+            // 2 — Profile selector (compact, always visible)
+            DrawProfileSelectorCompact();
             PristinePipelineWindow.DrawDivider();
+
+            // 3 — Rules preview (scrollable)
             DrawActiveProfileSummary();
+
+            // 4 — Profile management (collapsible)
             PristinePipelineWindow.DrawDivider();
-            DrawManualActions();
+            DrawProfileManagementCollapsible(parentWindow);
         }
 
-        // ── Enable toggle ────────────────────────────────────────────────────────
+        // ── Enable toggle + primary actions ──────────────────────────────────────
 
-        private void DrawEnableToggle()
+        private void DrawEnableToggleAndPrimaryActions()
         {
             EditorGUILayout.Space(6);
 
+            // ── Status row ───────────────────────────────────────────────────────
             using (new EditorGUILayout.HorizontalScope())
             {
                 EditorGUILayout.LabelField("FBX Importer", EditorStyles.boldLabel);
@@ -93,62 +107,208 @@ namespace GlyphLabs.PristinePipeline
 
                 bool enabled = ToolSettings.FBX_Enabled;
                 bool updated = EditorGUILayout.Toggle(enabled, GUILayout.Width(20));
-
                 if (updated != enabled)
                 {
                     ToolSettings.FBX_Enabled = updated;
                     Debug.Log(
-                        $"{ToolInfo.LogPrefix} FBX Importer " +
-                        $"{(updated ? "enabled" : "disabled")}.");
+                        $"{ToolInfo.LogPrefix} FBX Importer {(updated ? "enabled" : "disabled")}.");
                 }
 
+                // Coloured status pill
+                Color pillColor = ToolSettings.FBX_Enabled
+                    ? new Color(0.2f, 0.75f, 0.35f)
+                    : new Color(0.55f, 0.55f, 0.55f);
+                Color prev = GUI.color;
+                GUI.color = pillColor;
                 EditorGUILayout.LabelField(
-                    ToolSettings.FBX_Enabled ? "Enabled" : "Disabled",
-                    GUILayout.Width(56));
+                    ToolSettings.FBX_Enabled ? "● Active" : "● Off",
+                    EditorStyles.miniLabel,
+                    GUILayout.Width(52));
+                GUI.color = prev;
             }
 
-            EditorGUILayout.HelpBox(
-                ToolSettings.FBX_Enabled
-                    ? "FBX Importer is active. Import settings will be applied automatically."
-                    : "FBX Importer is disabled. Enable it to apply import settings automatically.",
-                ToolSettings.FBX_Enabled ? MessageType.Info : MessageType.None);
+            EditorGUILayout.Space(6);
 
+            bool canAct = ActiveProfile != null;
+            GUI.enabled = canAct;
+
+            // ── Primary action — Reprocess ───────────────────────────────────────
+            Color bg = GUI.backgroundColor;
+            GUI.backgroundColor = canAct ? new Color(0.25f, 0.65f, 1f) : bg;
+
+            if (GUILayout.Button(
+                canAct
+                    ? $"▶  Reprocess All FBX Files  ({ActiveProfile.profileName})"
+                    : "▶  Reprocess All FBX Files",
+                GUILayout.Height(34)))
+            {
+                if (EditorUtility.DisplayDialog(
+                    "Reprocess All FBX Files",
+                    $"This will reimport all FBX files in the project using the " +
+                    $"'{ActiveProfile.profileName}' profile.\n\nContinue?",
+                    "Reprocess", "Cancel"))
+                {
+                    int count = FBXImporterUtility.ReprocessAll(ActiveProfile);
+                    EditorUtility.DisplayDialog(
+                        "Reprocess Complete",
+                        $"{count} FBX file(s) reprocessed.", "OK");
+                }
+            }
+
+            GUI.backgroundColor = bg;
             EditorGUILayout.Space(4);
+
+            // ── Secondary action — Generate Prefabs ──────────────────────────────
+            GUI.backgroundColor = canAct ? new Color(0.45f, 0.78f, 0.45f) : bg;
+
+            if (GUILayout.Button(
+                "  Generate Prefabs Now",
+                GUILayout.Height(26)))
+            {
+                if (EditorUtility.DisplayDialog(
+                    "Generate Prefabs",
+                    $"Generate prefabs for all FBX files using the " +
+                    $"'{ActiveProfile.profileName}' profile.\n" +
+                    $"Existing prefabs at the destination will not be overwritten.\n\nContinue?",
+                    "Generate", "Cancel"))
+                {
+                    int count = GeneratePrefabsForAll(ActiveProfile);
+                    EditorUtility.DisplayDialog(
+                        "Generate Complete",
+                        $"{count} prefab(s) generated.", "OK");
+                }
+            }
+
+            GUI.backgroundColor = bg;
+            GUI.enabled = true;
+
+            if (!canAct)
+                EditorGUILayout.HelpBox(
+                    "Select or create a profile to enable actions.",
+                    MessageType.Info);
+
+            EditorGUILayout.Space(2);
         }
 
-        // ── Profile selector ─────────────────────────────────────────────────────
+        // ── Compact profile selector ─────────────────────────────────────────────
 
-        private void DrawProfileSelector(EditorWindow parentWindow)
+        private void DrawProfileSelectorCompact()
         {
             EditorGUILayout.Space(4);
-            EditorGUILayout.LabelField("Profile", EditorStyles.boldLabel);
-            EditorGUILayout.Space(2);
 
             if (_profiles.Count == 0)
             {
                 EditorGUILayout.HelpBox(
-                    "No profiles found. Create one below or check the profile save path in Settings.",
+                    "No profiles found. Use 'Manage Profiles' below to create one.",
                     MessageType.Warning);
-                EditorGUILayout.Space(4);
-                DrawProfileManagementButtons(null, parentWindow);
                 return;
             }
 
-            int newIndex = EditorGUILayout.Popup(
-                new GUIContent("Active Profile"), _selectedIndex, _profileNames);
-
-            if (newIndex != _selectedIndex)
+            using (new EditorGUILayout.HorizontalScope())
             {
-                _selectedIndex = newIndex;
-                ProfileRegistry.SetActiveImportProfile(ActiveProfile);
+                EditorGUILayout.LabelField(
+                    new GUIContent("Profile", "The active FBX import profile."),
+                    GUILayout.Width(100));
+
+                int newIndex = EditorGUILayout.Popup(_selectedIndex, _profileNames);
+                if (newIndex != _selectedIndex)
+                {
+                    _selectedIndex = newIndex;
+                    ProfileRegistry.SetActiveImportProfile(ActiveProfile);
+                }
+
+                GUI.enabled = ActiveProfile != null;
+                if (GUILayout.Button(
+                    new GUIContent("◉", "Select asset in Project window"),
+                    GUILayout.Width(30), GUILayout.Height(18)))
+                    EditorGUIUtility.PingObject(ActiveProfile);
+                GUI.enabled = true;
             }
 
-            EditorGUILayout.Space(2);
-
-            if (ActiveProfile != null)
+            if (ActiveProfile != null && !string.IsNullOrWhiteSpace(ActiveProfile.description))
                 EditorGUILayout.LabelField(ActiveProfile.description, EditorStyles.helpBox);
 
-            EditorGUILayout.Space(6);
+            EditorGUILayout.Space(2);
+        }
+
+        // ── Active profile summary ───────────────────────────────────────────────
+
+        private void DrawActiveProfileSummary()
+        {
+            EditorGUILayout.Space(4);
+            EditorGUILayout.LabelField("Active Rules", EditorStyles.boldLabel);
+            EditorGUILayout.Space(2);
+
+            if (ActiveProfile == null || ActiveProfile.Rules.Count == 0)
+            {
+                EditorGUILayout.HelpBox(
+                    "No profile selected or profile has no rules.",
+                    MessageType.Info);
+                return;
+            }
+
+            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+            {
+                EditorGUILayout.Space(2);
+
+                // Column headers
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    EditorGUILayout.LabelField("Pattern", EditorStyles.miniBoldLabel, GUILayout.Width(100));
+                    EditorGUILayout.LabelField("Preset", EditorStyles.miniBoldLabel, GUILayout.Width(110));
+                    EditorGUILayout.LabelField("Note", EditorStyles.miniBoldLabel);
+                }
+
+                PristinePipelineWindow.DrawDivider();
+
+                // Scrollable rule rows
+                _rulesScrollPos = EditorGUILayout.BeginScrollView(
+                    _rulesScrollPos,
+                    GUILayout.MaxHeight(RulesPreviewMaxHeight));
+
+                foreach (FBXImportRule rule in ActiveProfile.Rules)
+                {
+                    using (new EditorGUILayout.HorizontalScope())
+                    {
+                        EditorGUILayout.LabelField(rule.namePattern, GUILayout.Width(100));
+                        EditorGUILayout.LabelField(
+                            rule.preset?.presetName ?? "—", GUILayout.Width(110));
+                        EditorGUILayout.LabelField(rule.note, EditorStyles.miniLabel);
+                    }
+                }
+
+                EditorGUILayout.EndScrollView();
+                EditorGUILayout.Space(2);
+
+                // Profile-level metadata
+                EditorGUILayout.LabelField(
+                    "Naming convention: " + (ActiveProfile.enforceNamingConvention
+                        ? "Enforced (blocks on violation)"
+                        : "Warn only"),
+                    EditorStyles.miniLabel);
+
+                EditorGUILayout.LabelField(
+                    $"Emission: {(ActiveProfile.enableEmission ? "On" : "Off")}  " +
+                    $"AO: {(ActiveProfile.enableAmbientOcclusion ? "On" : "Off")}",
+                    EditorStyles.miniLabel);
+
+                EditorGUILayout.Space(2);
+            }
+        }
+
+        // ── Collapsible profile management ───────────────────────────────────────
+
+        private void DrawProfileManagementCollapsible(EditorWindow parentWindow)
+        {
+            _profileManagementExpanded = EditorGUILayout.Foldout(
+                _profileManagementExpanded,
+                "Manage Profiles",
+                true,
+                EditorStyles.foldoutHeader);
+
+            if (!_profileManagementExpanded) return;
+
+            EditorGUILayout.Space(4);
             DrawProfileManagementButtons(ActiveProfile, parentWindow);
         }
 
@@ -167,14 +327,12 @@ namespace GlyphLabs.PristinePipeline
                 }
 
                 GUI.enabled = selected != null;
-
                 if (GUILayout.Button("Edit Profile", GUILayout.Width(halfWidth)))
                 {
                     BeginEdit(selected);
                     _mode = Mode.CreateEdit;
                     parentWindow.Repaint();
                 }
-
                 GUI.enabled = true;
             }
 
@@ -227,147 +385,16 @@ namespace GlyphLabs.PristinePipeline
                 }
 
                 GUI.enabled = selected != null;
-
                 if (GUILayout.Button("Export JSON", GUILayout.Width(halfWidth)))
                     FBXImporterUtility.ExportProfile(selected);
-
                 GUI.enabled = true;
             }
 
-            EditorGUILayout.Space(2);
-
-            if (selected != null)
-            {
-                if (GUILayout.Button("Select Asset in Project"))
-                    EditorGUIUtility.PingObject(selected);
-            }
+            EditorGUILayout.Space(4);
         }
 
-        // ── Active profile summary ───────────────────────────────────────────────
+        // ── Generate Prefabs helper ──────────────────────────────────────────────
 
-        private void DrawActiveProfileSummary()
-        {
-            EditorGUILayout.Space(4);
-            EditorGUILayout.LabelField("Rules", EditorStyles.boldLabel);
-            EditorGUILayout.Space(2);
-
-            if (ActiveProfile == null || ActiveProfile.Rules.Count == 0)
-            {
-                EditorGUILayout.HelpBox(
-                    "No profile selected or profile has no rules.",
-                    MessageType.Info);
-                return;
-            }
-
-            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
-            {
-                EditorGUILayout.Space(2);
-
-                using (new EditorGUILayout.HorizontalScope())
-                {
-                    EditorGUILayout.LabelField("Pattern",
-                        EditorStyles.miniBoldLabel, GUILayout.Width(100));
-                    EditorGUILayout.LabelField("Preset",
-                        EditorStyles.miniBoldLabel, GUILayout.Width(110));
-                    EditorGUILayout.LabelField("Note",
-                        EditorStyles.miniBoldLabel);
-                }
-
-                PristinePipelineWindow.DrawDivider();
-
-                foreach (FBXImportRule rule in ActiveProfile.Rules)
-                {
-                    using (new EditorGUILayout.HorizontalScope())
-                    {
-                        EditorGUILayout.LabelField(rule.namePattern, GUILayout.Width(100));
-                        EditorGUILayout.LabelField(
-                            rule.preset?.presetName ?? "—", GUILayout.Width(110));
-                        EditorGUILayout.LabelField(rule.note, EditorStyles.miniLabel);
-                    }
-                }
-
-                EditorGUILayout.Space(2);
-
-                EditorGUILayout.LabelField(
-                    "Naming convention: " + (ActiveProfile.enforceNamingConvention
-                        ? "Enforced (imports blocked on violation)"
-                        : "Warn only"),
-                    EditorStyles.miniLabel);
-
-                // Phase 5 profile summary
-                EditorGUILayout.LabelField(
-                    $"Emission: {(ActiveProfile.enableEmission ? "On" : "Off")}  " +
-                    $"AO: {(ActiveProfile.enableAmbientOcclusion ? "On" : "Off")}",
-                    EditorStyles.miniLabel);
-
-                EditorGUILayout.Space(2);
-            }
-        }
-
-        // ── Manual actions (Reprocess + Generate Prefabs) ────────────────────────
-
-        private void DrawManualActions()
-        {
-            EditorGUILayout.Space(4);
-
-            bool canAct = ActiveProfile != null;
-            GUI.enabled = canAct;
-
-            // Reprocess All FBX Files
-            Color prev = GUI.backgroundColor;
-            GUI.backgroundColor = canAct ? new Color(0.3f, 0.6f, 1f) : GUI.backgroundColor;
-
-            if (GUILayout.Button("Reprocess All FBX Files", GUILayout.Height(32)))
-            {
-                if (EditorUtility.DisplayDialog(
-                    "Reprocess All FBX Files",
-                    $"This will reimport all FBX files in the project using the " +
-                    $"'{ActiveProfile.profileName}' profile.\n\nContinue?",
-                    "Reprocess", "Cancel"))
-                {
-                    int count = FBXImporterUtility.ReprocessAll(ActiveProfile);
-                    EditorUtility.DisplayDialog(
-                        "Reprocess Complete",
-                        $"{count} FBX file(s) reprocessed.",
-                        "OK");
-                }
-            }
-
-            GUI.backgroundColor = prev;
-
-            EditorGUILayout.Space(4);
-
-            // Generate Prefabs Now — Phase 5 manual trigger
-            // Available regardless of preset.generatePrefab toggle so artists can
-            // regenerate prefabs on demand without changing the auto-import setting.
-            GUI.backgroundColor = canAct ? new Color(0.55f, 0.85f, 0.55f) : GUI.backgroundColor;
-
-            if (GUILayout.Button("Generate Prefabs Now", GUILayout.Height(32)))
-            {
-                if (EditorUtility.DisplayDialog(
-                    "Generate Prefabs",
-                    $"Generate prefabs for all FBX files in the project using the " +
-                    $"'{ActiveProfile.profileName}' profile.\n" +
-                    $"Existing prefabs at the destination path will not be overwritten.\n\nContinue?",
-                    "Generate", "Cancel"))
-                {
-                    int count = GeneratePrefabsForAll(ActiveProfile);
-                    EditorUtility.DisplayDialog(
-                        "Generate Complete",
-                        $"{count} prefab(s) generated.",
-                        "OK");
-                }
-            }
-
-            GUI.backgroundColor = prev;
-            GUI.enabled = true;
-            EditorGUILayout.Space(8);
-        }
-
-        /// <summary>
-        /// Iterates all FBX files in the project and calls GeneratePrefab for each.
-        /// Returns the count of new prefabs created (existing ones are skipped).
-        /// </summary>
         private static int GeneratePrefabsForAll(FBXImportProfile profile)
         {
             if (profile == null) return 0;
@@ -461,10 +488,8 @@ namespace GlyphLabs.PristinePipeline
                             "Unsaved Changes",
                             "You have unsaved changes. Go back and discard them?",
                             "Discard", "Keep Editing");
-
                         if (!discard) return false;
                     }
-
                     _mode = Mode.List;
                     parentWindow.Repaint();
                     return false;
@@ -519,15 +544,11 @@ namespace GlyphLabs.PristinePipeline
             _prefixReorderable?.DoLayoutList();
         }
 
-        // ── Phase 5 — profile-level toggles ─────────────────────────────────────
-
         private void DrawProfileLevelToggles()
         {
             EditorGUILayout.Space(4);
             EditorGUILayout.LabelField("Texture Channels", EditorStyles.boldLabel);
-            EditorGUILayout.HelpBox(
-                "These toggles apply to all presets in this profile.",
-                MessageType.None);
+            EditorGUILayout.HelpBox("These toggles apply to all presets in this profile.", MessageType.None);
             EditorGUILayout.Space(2);
 
             EditorGUI.BeginChangeCheck();
@@ -541,7 +562,7 @@ namespace GlyphLabs.PristinePipeline
             _editAO = EditorGUILayout.Toggle(
                 new GUIContent("Enable Ambient Occlusion",
                     "Search and assign _AO textures to the Occlusion Map slot. " +
-                    "Has no effect when an ORM texture is found (AO is packed into R channel)."),
+                    "Has no effect when an ORM texture is found."),
                 _editAO);
 
             if (EditorGUI.EndChangeCheck()) _isDirty = true;
@@ -563,12 +584,6 @@ namespace GlyphLabs.PristinePipeline
             DrawPresetFields(_editDefaultPreset);
         }
 
-        // ── Preset fields (used for default preset and per-rule presets) ─────────
-
-        /// <summary>
-        /// Draws all fields for an FBXImportPreset using layout-based controls.
-        /// Enum fields use the editor extension methods to read and write via int.
-        /// </summary>
         private void DrawPresetFields(FBXImportPreset preset)
         {
             if (preset == null) return;
@@ -577,107 +592,85 @@ namespace GlyphLabs.PristinePipeline
 
             using (new EditorGUI.IndentLevelScope(1))
             {
-                // ── Mesh settings ────────────────────────────────────────────────
-
                 preset.scaleFactor = EditorGUILayout.FloatField(
-                    new GUIContent("Scale Factor",
-                        "Uniform scale on import. Maya = 0.01, Blender = 1.0."),
+                    new GUIContent("Scale Factor", "Uniform scale on import. Maya = 0.01, Blender = 1.0."),
                     preset.scaleFactor);
 
                 if (preset.scaleFactor <= 0f)
-                    EditorGUILayout.HelpBox(
-                        "Scale factor must be greater than zero.", MessageType.Error);
+                    EditorGUILayout.HelpBox("Scale factor must be greater than zero.", MessageType.Error);
 
                 preset.SetMeshCompression(
                     (ModelImporterMeshCompression)EditorGUILayout.EnumPopup(
-                        new GUIContent("Mesh Compression",
-                            "Reduces mesh size. Off preserves precision."),
+                        new GUIContent("Mesh Compression", "Reduces mesh size. Off preserves precision."),
                         preset.MeshCompression()));
 
                 preset.readWriteEnabled = EditorGUILayout.Toggle(
-                    new GUIContent("Read/Write Enabled",
-                        "Allows CPU-side mesh access at runtime."),
+                    new GUIContent("Read/Write Enabled", "Allows CPU-side mesh access at runtime."),
                     preset.readWriteEnabled);
 
                 preset.optimizeMesh = EditorGUILayout.Toggle(
-                    new GUIContent("Optimize Mesh",
-                        "Reorders vertices for GPU cache performance. Recommended on."),
+                    new GUIContent("Optimize Mesh", "Reorders vertices for GPU cache performance."),
                     preset.optimizeMesh);
 
                 preset.generateLightmapUVs = EditorGUILayout.Toggle(
-                    new GUIContent("Generate Lightmap UVs",
-                        "Creates a second UV channel for lightmap baking."),
+                    new GUIContent("Generate Lightmap UVs", "Creates a second UV channel for lightmap baking."),
                     preset.generateLightmapUVs);
 
                 preset.SetNormals(
                     (ModelImporterNormals)EditorGUILayout.EnumPopup(
-                        new GUIContent("Normals",
-                            "Import preserves artist intent. Calculate recomputes from geometry."),
+                        new GUIContent("Normals", "Import preserves artist intent. Calculate recomputes from geometry."),
                         preset.Normals()));
 
                 preset.SetTangents(
                     (ModelImporterTangents)EditorGUILayout.EnumPopup(
-                        new GUIContent("Tangents",
-                            "Calculate Mikkt Space matches most bakers."),
+                        new GUIContent("Tangents", "Calculate Mikkt Space matches most bakers."),
                         preset.Tangents()));
 
                 preset.swapUVs = EditorGUILayout.Toggle(
-                    new GUIContent("Swap UVs",
-                        "Swaps UV channel 0 and 1. Fixes inverted UV order from some exporters."),
+                    new GUIContent("Swap UVs", "Swaps UV channel 0 and 1."),
                     preset.swapUVs);
 
                 EditorGUILayout.Space(4);
                 EditorGUILayout.LabelField("Material & Texture", EditorStyles.miniBoldLabel);
 
-                // ── Phase 5 — material / texture / prefab fields ─────────────────
-
                 preset.materialPrefix = EditorGUILayout.TextField(
-                    new GUIContent("Material Prefix",
-                        "Prepended to created material names — e.g. M_ produces M_Rock."),
+                    new GUIContent("Material Prefix", "Prepended to created material names."),
                     preset.materialPrefix);
 
                 preset.materialsFolder = EditorGUILayout.TextField(
-                    new GUIContent("Materials Folder",
-                        "Unity asset path where created materials are saved."),
+                    new GUIContent("Materials Folder", "Unity asset path where materials are saved."),
                     preset.materialsFolder);
 
                 if (!string.IsNullOrWhiteSpace(preset.materialsFolder)
                     && !preset.materialsFolder.StartsWith("Assets/"))
-                    EditorGUILayout.HelpBox(
-                        "Materials folder must start with Assets/.", MessageType.Warning);
+                    EditorGUILayout.HelpBox("Materials folder must start with Assets/.", MessageType.Warning);
 
                 preset.texturesFolder = EditorGUILayout.TextField(
-                    new GUIContent("Textures Folder",
-                        "Unity asset path searched for matching textures. Not recursive."),
+                    new GUIContent("Textures Folder", "Unity asset path searched for matching textures."),
                     preset.texturesFolder);
 
                 if (!string.IsNullOrWhiteSpace(preset.texturesFolder)
                     && !preset.texturesFolder.StartsWith("Assets/"))
-                    EditorGUILayout.HelpBox(
-                        "Textures folder must start with Assets/.", MessageType.Warning);
+                    EditorGUILayout.HelpBox("Textures folder must start with Assets/.", MessageType.Warning);
 
                 EditorGUILayout.Space(4);
                 EditorGUILayout.LabelField("Prefab", EditorStyles.miniBoldLabel);
 
                 preset.prefabsFolder = EditorGUILayout.TextField(
-                    new GUIContent("Prefabs Folder",
-                        "Unity asset path where generated prefabs are saved."),
+                    new GUIContent("Prefabs Folder", "Unity asset path where generated prefabs are saved."),
                     preset.prefabsFolder);
 
                 if (!string.IsNullOrWhiteSpace(preset.prefabsFolder)
                     && !preset.prefabsFolder.StartsWith("Assets/"))
-                    EditorGUILayout.HelpBox(
-                        "Prefabs folder must start with Assets/.", MessageType.Warning);
+                    EditorGUILayout.HelpBox("Prefabs folder must start with Assets/.", MessageType.Warning);
 
                 preset.generatePrefab = EditorGUILayout.Toggle(
                     new GUIContent("Auto-Generate Prefab",
-                        "When on, a prefab is generated automatically on import. " +
-                        "Manual generation is always available in list mode."),
+                        "When on, a prefab is generated automatically on import."),
                     preset.generatePrefab);
 
                 preset.lightmapStatic = EditorGUILayout.Toggle(
-                    new GUIContent("Lightmap Static",
-                        "Marks the generated prefab root as ContributeGI."),
+                    new GUIContent("Lightmap Static", "Marks the generated prefab root as ContributeGI."),
                     preset.lightmapStatic);
             }
 
@@ -750,17 +743,8 @@ namespace GlyphLabs.PristinePipeline
 
         private void BuildRulesList_Internal()
         {
-            // Each rule element expands to show all preset fields via EditorGUI rect-based
-            // drawing. The height callback accounts for validation messages.
-            // Enum fields use FBXImportPresetEditorExtensions (SetMeshCompression etc.)
-            // rather than direct casts.
-
-            const float lineH = 18f;   // EditorGUIUtility.singleLineHeight
-            const float spacing = 20f;   // lineH + 2
-
-            // Count of fixed rows per rule: pattern/note, preset name, scale/compression,
-            // toggles row 1, normals/tangents, swap uvs, mat prefix, mat folder,
-            // tex folder, prefab folder, generate prefab, lightmap static = 12 rows
+            const float lineH = 18f;
+            const float spacing = 20f;
             const int FixedRows = 12;
 
             _rulesReorderable = new ReorderableList(
@@ -808,7 +792,7 @@ namespace GlyphLabs.PristinePipeline
                             rule.preset.MeshCompression()));
                     y += spacing;
 
-                    // Row 3: toggle row 1
+                    // Row 3: toggles
                     rule.preset.readWriteEnabled = EditorGUI.ToggleLeft(
                         new Rect(rect.x, y, 110f, lineH), "Read/Write", rule.preset.readWriteEnabled);
                     rule.preset.optimizeMesh = EditorGUI.ToggleLeft(
@@ -832,8 +816,6 @@ namespace GlyphLabs.PristinePipeline
                     rule.preset.swapUVs = EditorGUI.ToggleLeft(
                         new Rect(rect.x, y, 130f, lineH), "Swap UVs", rule.preset.swapUVs);
                     y += spacing;
-
-                    // ── Phase 5 fields ───────────────────────────────────────────
 
                     // Row 6: material prefix
                     EditorGUI.LabelField(new Rect(rect.x, y, 100f, lineH), "Mat Prefix");
@@ -868,7 +850,6 @@ namespace GlyphLabs.PristinePipeline
 
                     if (EditorGUI.EndChangeCheck()) _isDirty = true;
 
-                    // Validation messages
                     var messages = FBXImporterUtility.ValidateRule(rule);
                     foreach (string msg in messages)
                     {
@@ -881,13 +862,11 @@ namespace GlyphLabs.PristinePipeline
                 elementHeightCallback = index =>
                 {
                     float height = FixedRows * spacing + 8f;
-
                     if (index >= 0 && index < _editRules.Count)
                     {
                         var messages = FBXImporterUtility.ValidateRule(_editRules[index]);
                         height += messages.Count * (lineH + 6f);
                     }
-
                     return height;
                 },
 
