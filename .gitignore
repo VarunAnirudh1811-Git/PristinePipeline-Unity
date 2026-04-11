@@ -21,3 +21,9 @@ UserSettings/
 # OS
 .DS_Store
 Thumbs.db
+
+# Ignore meta files for documentation / root files
+LICENSE.meta
+README.md.meta
+CHANGELOG.md.meta
+CONTRIBUTING.md.meta
