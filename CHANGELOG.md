@@ -7,6 +7,56 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [1.2.0] — 2026-04-13
+
+### Added — Active Root System (Core Architecture)
+
+- Introduced a global **Active Root** system that defines the working context for all tools
+- Active Root defaults to `Assets` and is always validated (never null or invalid)
+- All folder paths in templates, mapping profiles, and FBX import presets are now **relative to Active Root**
+- Added centralized path resolution via `ToolSettings.ResolveRelativeToActiveRoot()` to ensure consistent path construction across all systems
+
+
+### Added — Global Context Bar (UI)
+
+- Added an **Active Root bar** at the top of the main window
+- Displays current working root for all operations
+- Includes quick actions:
+  - **Ping** — highlights the root in Project window
+  - **Change** — select a different root folder
+  - **New Folder** — create a new root directly from the tool
+  - **Reset** — revert to default `Assets`
+- Missing or invalid roots are now detected and shown with a warning state
+
+### Added — Inline Root Creation Workflow
+
+- Users can now create a new root folder directly inside the tool
+- Inline creation mode with validation and error feedback
+- Automatically sets the newly created folder as Active Root
+
+### Changed — Unified Path Handling
+
+- Removed reliance on hardcoded `"Assets/"` paths across the codebase
+- All tools (Folder Generator, Asset Organizer, FBX Importer) now resolve paths through Active Root
+- Profiles are now:
+  - Portable
+  - Root-independent
+  - Consistent across projects
+
+### Changed — Responsive UI Layout
+
+- Action buttons in Active Root bar now use **dynamic width distribution**
+- Buttons scale proportionally with window size for consistent layout
+- Improved visual alignment and reduced layout inconsistencies
+
+### Improved — System Cohesion
+
+- Folder Generator now acts as a **context initializer** instead of passing root paths manually
+- Removed redundant root handling across utilities
+- All tools now operate within a unified execution context
+
+---
+
 ## [1.1.1] — 2026-04-03
 
 ### Added — Built-in Profile Detection

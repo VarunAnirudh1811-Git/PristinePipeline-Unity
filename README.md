@@ -123,9 +123,56 @@ The tool is designed around a daily-use workflow: once a profile is configured, 
 
 ---
 
+### 🧠 Active Root
+
+Pristine Pipeline works inside a selected folder called the Active Root.
+
+By default, this is : Assets/
+
+You can change it anytime from the top of the tool window.
+
+All folders and rules you create will work inside this root.
+
+#### Why this matters
+
+- All folder paths in templates and profiles are **relative to Active Root**
+- Makes profiles **portable across projects**
+- Prevents accidental asset clutter across the project
+- Allows working in isolated project spaces (e.g. `Assets/GameA`, `Assets/TestScene`)
+
+#### Quick actions
+
+From the Active Root bar, you can:
+
+- **Ping** — locate the root in the Project window
+- **Change** — select a different folder as root
+- **New Folder** — create a new project root instantly
+- **Reset** — revert back to `Assets`
+
+> 💡 Think of Active Root as the “working directory” for your entire pipeline.
+
+#### ⚠️ Safety & Scope
+
+Pristine Pipeline only operates inside the Active Root.
+
+- Assets outside the Active Root are ignored
+- Third-party plugins and external assets are not modified
+- Folder paths in profiles are always relative to Active Root
+
+> This prevents accidental modification of critical project files.
+
+---
+
 ### 📁 Folder Generator
 
-The Folder Generator creates an entire folder structure in your project from a saved template in one click — great for starting new projects consistently.
+The Folder Generator creates an entire folder structure in your project from a saved template in one click — great for starting new projects consistently. It always creates folders inside the Active Root.
+
+To create a new project structure:
+
+1. Use **New Folder** in the Active Root bar (e.g. GameA)
+2. Set it as Active Root
+3. Generate your template inside it
+
 
 **Using a built-in template:**
 - Open the **Folder Generator** tab
@@ -137,10 +184,6 @@ The Folder Generator creates an entire folder structure in your project from a s
 - Give it a name and add your folder paths one by one (e.g. `Art/Textures`, `Audio/SFX`, `Scenes`)
 - Use `/` to create nested folders — e.g. `Art/Characters/Rigs` creates all three levels at once
 - Click **Save Template** — it will appear in the dropdown for future use
-
-**Generation options:**
-- Enable **Use Project Root Folder** and enter a project name to nest everything under `Assets/<YourProjectName>` instead of directly under `Assets/`
-- Enable **Add .keep in Empty Folders** to place a small placeholder file in each empty folder so Git tracks them
 
 **Sharing templates:**
 - Use **Export JSON** to save a template as a `.json` file and share it with your team
@@ -163,7 +206,8 @@ The Asset Organizer automatically moves assets to the right folder when they are
 - Add rules that map a file extension to a destination folder:
   - **Extension** — the file type to match, e.g. `png`, `wav`, `fbx`
   - **Name Pattern** *(optional)* — a wildcard filter on the filename, e.g. `T_*` to only match textures named with the `T_` prefix
-  - **Destination** — the folder to move the file into, e.g. `Assets/Art/Textures`
+  - **Destination** — the folder to move the file into, e.g. `Art/Textures` 
+- **Note:** All folder paths should be defined relative to **Active Root**.
 - Rules are evaluated in order — the **last matching rule wins**, so place more specific rules below general ones
 - Click **Save Profile**
 
@@ -173,6 +217,15 @@ The Asset Organizer automatically moves assets to the right folder when they are
 
 **Sharing profiles:**
 - Use **Export JSON** / **Import JSON** to share profiles across projects or with your team
+
+#### Scope
+
+The Asset Organizer only processes assets inside the Active Root.
+
+This ensures:
+- Third-party plugins are not modified
+- External assets remain untouched
+- Organizing is safe and predictable
 
 ---
 
@@ -193,6 +246,8 @@ The FBX Importer automatically applies import settings to FBX files the moment t
   - **Preset settings** — scale factor, mesh compression, normals, tangents, lightmap UV generation, and more
   - **Material & texture settings** — material prefix, materials folder, textures folder
   - **Prefab settings** — prefabs folder, auto-generate prefab toggle, lightmap static toggle
+
+- **Note:**  All material, texture, and prefab paths are defined relative to **Active Root**.
 - Rules are evaluated in order — the **last matching rule wins**
 - Click **Save Profile**
 
@@ -215,6 +270,7 @@ The FBX Importer automatically applies import settings to FBX files the moment t
 - Use **Export JSON** / **Import JSON** to share profiles across projects or with your team
 
 ---
+
 
 ## Settings
 

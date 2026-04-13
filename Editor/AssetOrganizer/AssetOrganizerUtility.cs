@@ -13,13 +13,19 @@ namespace GlyphLabs.PristinePipeline
     /// All rule matching, asset moving, and profile operations live here.
     /// AssetOrganizerTab and AssetOrganizerProcessor delegate to this class.
     /// </summary>
+    ///   v1.2 — Active Root refactor:
+    ///   Rule destination folders are stored as paths relative to the Active Root
+    ///   (ToolSettings.ActiveRootPath). They must NOT start with "Assets/". This utility
+    ///   resolves them to full Unity asset paths by prepending ActiveRootPath at the
+    ///   point of use (MoveAsset, EnsureAssetFolderExists).
     public static class AssetOrganizerUtility
     {
         // ── Profile loading ──────────────────────────────────────────────────────
 
         /// <summary>
-        /// Loads all MappingProfile assets visible to the project from the
-        /// user profile save path. Returns an empty list if none exist.
+        /// Loads all AssetMappingProfile assets visible to the project from the
+        /// built-in package path and user profile save path.
+        /// Returns an empty list if none exist.
         /// </summary>
         public static List<AssetMappingProfile> LoadAllProfiles()
         {
@@ -28,9 +34,7 @@ namespace GlyphLabs.PristinePipeline
             string builtInPath = ToolInfo.BuiltInMappingProfilePath;
 
             if (AssetDatabase.IsValidFolder(builtInPath))
-            {
                 LoadProfilesFromPath(builtInPath, profiles);
-            }
 
             if (!string.IsNullOrWhiteSpace(userPath))
             {
@@ -54,25 +58,22 @@ namespace GlyphLabs.PristinePipeline
                 {
                     results.Add(profile);
                     profile.isBuiltIn = path.StartsWith("Packages/");
-                }                    
+                }
             }
         }
 
-        /// <summary>
-        /// Returns display names for a list of profiles.
-        /// </summary>
+        /// <summary>Returns display names for a list of profiles.</summary>
         public static string[] GetProfileDisplayNames(List<AssetMappingProfile> profiles)
         {
             return profiles
-                 .Select(p => p.isBuiltIn ? $"{p.profileName} (Built-in)" : p.profileName)
-                 .ToArray();
+                .Select(p => p.isBuiltIn ? $"{p.profileName} (Built-in)" : p.profileName)
+                .ToArray();
         }
-        
 
         // ── Profile persistence ──────────────────────────────────────────────────
 
         /// <summary>
-        /// Saves a MappingProfile asset. Updates in place if it already exists,
+        /// Saves an AssetMappingProfile asset. Updates in place if it already exists,
         /// creates a new asset at the profile save path if it does not.
         /// </summary>
         public static void SaveProfile(AssetMappingProfile profile)
@@ -127,9 +128,7 @@ namespace GlyphLabs.PristinePipeline
             }
         }
 
-        /// <summary>
-        /// Creates a duplicate of the given profile at the save path.
-        /// </summary>
+        /// <summary>Creates a duplicate of the given profile at the save path.</summary>
         public static AssetMappingProfile CloneProfile(AssetMappingProfile source)
         {
             if (source == null) return null;
@@ -151,20 +150,15 @@ namespace GlyphLabs.PristinePipeline
             return clone;
         }
 
-        // ── Profile import / export ─────────────────────────────────────────────
+        // ── Profile import / export ──────────────────────────────────────────────
 
-        /// <summary>
-        /// Exports an AssetMappingProfile to a JSON file via a save panel dialog.
-        /// </summary>
+        /// <summary>Exports an AssetMappingProfile to a JSON file.</summary>
         public static void ExportProfile(AssetMappingProfile profile)
         {
             if (profile == null) return;
 
             string path = EditorUtility.SaveFilePanel(
-                "Export Asset Mapping Profile",
-                "",
-                profile.profileName,
-                "json");
+                "Export Asset Mapping Profile", "", profile.profileName, "json");
 
             if (string.IsNullOrEmpty(path)) return;
 
@@ -179,6 +173,7 @@ namespace GlyphLabs.PristinePipeline
             Debug.Log($"{ToolInfo.LogPrefix} Exported Asset Mapping Profile to: {path}");
         }
 
+        /// <summary>Imports an AssetMappingProfile from a JSON file.</summary>
         public static AssetMappingProfile ImportProfile()
         {
             string path = EditorUtility.OpenFilePanel("Import Asset Mapping Profile", "", "json");
@@ -218,9 +213,7 @@ namespace GlyphLabs.PristinePipeline
             {
                 Debug.LogError($"{ToolInfo.LogPrefix} Import failed: {ex.Message}");
                 EditorUtility.DisplayDialog(
-                    "Import Failed",
-                    "An error occurred while reading the file.",
-                    "OK");
+                    "Import Failed", "An error occurred while reading the file.", "OK");
                 return null;
             }
         }
@@ -238,12 +231,9 @@ namespace GlyphLabs.PristinePipeline
         /// <summary>
         /// Finds the best matching rule for the given asset path from the profile.
         ///
-        /// Evaluation strategy — all rules evaluated, last match wins:
-        /// Rules are checked in order. Every rule that matches updates the result.
-        /// This means rules lower in the list take priority over rules higher up,
-        /// giving the user explicit control over precedence by reordering rules.
-        /// A rule with a name pattern is not automatically higher priority than
-        /// an extension-only rule — position in the list is what matters.
+        /// All rules are evaluated in order — last match wins. A rule with a name
+        /// pattern is not automatically higher priority than an extension-only rule;
+        /// position in the list determines precedence.
         ///
         /// Returns null if no rule matches.
         /// </summary>
@@ -260,15 +250,12 @@ namespace GlyphLabs.PristinePipeline
                 if (string.IsNullOrWhiteSpace(rule.extension)) continue;
                 if (string.IsNullOrWhiteSpace(rule.destinationFolder)) continue;
 
-                // Extension must match (case-insensitive, stored without dot)
                 if (!rule.extension.TrimStart('.').ToLowerInvariant().Equals(extension))
                     continue;
 
-                // If the rule has a name pattern, it must also match
                 if (rule.HasNamePattern && !MatchesWildcard(fileName, rule.namePattern))
                     continue;
 
-                // This rule matches — update lastMatch so the last match wins
                 lastMatch = rule;
             }
 
@@ -277,39 +264,22 @@ namespace GlyphLabs.PristinePipeline
 
         /// <summary>
         /// Wildcard pattern matching supporting * (any sequence) and ? (any single char).
-        /// Case-insensitive. Used for optional name pattern rules.
-        ///
-        /// Examples:
-        ///   MatchesWildcard("T_Hero_BC",    "T_*")          → true
-        ///   MatchesWildcard("T_Hero_BC",    "*_BC")         → true
-        ///   MatchesWildcard("T_Hero_BC",    "T_*_BC")       → true
-        ///   MatchesWildcard("SM_Rock",      "T_*")          → false
-        ///   MatchesWildcard("T_A",          "T_?")          → true
-        ///   MatchesWildcard("T_AB",         "T_?")          → false
-        ///
-        /// Architecture note: this method is the only place wildcard logic lives.
-        /// To upgrade to regex in a future release, replace the body of this method
-        /// with a Regex.IsMatch call — the rest of the system is unaffected.
+        /// Case-insensitive. Dynamic programming — handles all edge cases correctly.
         /// </summary>
         public static bool MatchesWildcard(string input, string pattern)
         {
             if (string.IsNullOrEmpty(pattern)) return true;
             if (string.IsNullOrEmpty(input)) return false;
 
-            // Normalise to lowercase for case-insensitive matching
             input = input.ToLowerInvariant();
             pattern = pattern.ToLowerInvariant();
 
-            // dp[i][j] = true if input[0..i-1] matches pattern[0..j-1]
-            // Dynamic programming approach handles all * and ? combinations
-            // correctly including multiple * wildcards in one pattern.
             int inputLen = input.Length;
             int patternLen = pattern.Length;
 
             bool[,] dp = new bool[inputLen + 1, patternLen + 1];
             dp[0, 0] = true;
 
-            // A pattern of all * characters matches an empty input
             for (int j = 1; j <= patternLen; j++)
                 if (pattern[j - 1] == '*') dp[0, j] = dp[0, j - 1];
 
@@ -318,16 +288,9 @@ namespace GlyphLabs.PristinePipeline
                 for (int j = 1; j <= patternLen; j++)
                 {
                     if (pattern[j - 1] == '*')
-                    {
-                        // * matches zero characters (dp[i][j-1])
-                        // or one more character (dp[i-1][j])
                         dp[i, j] = dp[i, j - 1] || dp[i - 1, j];
-                    }
                     else if (pattern[j - 1] == '?' || pattern[j - 1] == input[i - 1])
-                    {
-                        // ? matches any single char, or exact char match
                         dp[i, j] = dp[i - 1, j - 1];
-                    }
                 }
             }
 
@@ -338,24 +301,27 @@ namespace GlyphLabs.PristinePipeline
 
         /// <summary>
         /// Moves an asset to the destination folder defined by the matching rule.
+        /// rule.destinationFolder is treated as a path relative to the Active Root
+        /// (ToolSettings.ActiveRootPath) and resolved to a full Unity asset path here.
         /// Creates the destination folder if it does not exist.
         /// Returns true if the move succeeded, false if it was skipped or failed.
         /// </summary>
-        public static bool  MoveAsset(string assetPath, MappingRule rule)
+        public static bool MoveAsset(string assetPath, MappingRule rule)
         {
             if (rule == null || string.IsNullOrWhiteSpace(rule.destinationFolder))
                 return false;
 
-            string destination = rule.destinationFolder.TrimEnd('/');
+            // Resolve relative destination to a full Unity asset path
+            string destination = ToolSettings.ResolveRelativeToActiveRoot(rule.destinationFolder);
             string fileName = Path.GetFileName(assetPath);
             string targetPath = destination + "/" + fileName;
 
-            // Asset is already in the correct folder — nothing to do
+            // Already in the correct folder — nothing to do
             string currentFolder = Path.GetDirectoryName(assetPath)?.Replace("\\", "/");
             if (string.Equals(currentFolder, destination, StringComparison.OrdinalIgnoreCase))
                 return false;
-                        
-            // Check for a name collision at the destination
+
+            // Name collision at destination
             if (AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(targetPath) != null)
             {
                 Debug.LogWarning(
@@ -363,7 +329,6 @@ namespace GlyphLabs.PristinePipeline
                 return false;
             }
 
-            // Ensure the destination folder exists — create it if needed
             EnsureAssetFolderExists(destination);
 
             string error = AssetDatabase.MoveAsset(assetPath, targetPath);
@@ -380,8 +345,8 @@ namespace GlyphLabs.PristinePipeline
         }
 
         /// <summary>
-        /// Runs a full organize pass over all assets in the project using the
-        /// given profile. Used by the Manual Organize button in the tab UI.
+        /// Runs a full organize pass over all assets in the project using the given profile.
+        /// Used by the Manual Organize button in the tab UI.
         /// Returns the number of assets successfully moved.
         /// </summary>
         public static int OrganizeAll(AssetMappingProfile profile, out int skipped)
@@ -417,7 +382,8 @@ namespace GlyphLabs.PristinePipeline
                 AssetDatabase.Refresh();
             }
 
-            Debug.Log($"{ToolInfo.LogPrefix} Organize complete — {moved} asset(s) moved, {skipped} skipped.");
+            Debug.Log(
+                $"{ToolInfo.LogPrefix} Organize complete — {moved} asset(s) moved, {skipped} skipped.");
             return moved;
         }
 
@@ -426,6 +392,7 @@ namespace GlyphLabs.PristinePipeline
         /// <summary>
         /// Returns a list of validation messages for a single rule.
         /// Empty list means the rule is valid.
+        /// Destination folders must be relative paths — they must NOT start with "Assets/".
         /// </summary>
         public static List<string> ValidateRule(MappingRule rule)
         {
@@ -436,12 +403,21 @@ namespace GlyphLabs.PristinePipeline
 
             if (string.IsNullOrWhiteSpace(rule.destinationFolder))
                 messages.Add("Destination folder cannot be empty.");
-            else if (!rule.destinationFolder.StartsWith("Assets/"))
-                messages.Add("Destination folder must start with Assets/.");
+            else if (rule.destinationFolder.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase))
+                messages.Add("Destination folder must be a relative path — do not start with \"Assets/\".");
 
             return messages;
         }
 
+        // ── Path resolution ──────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Resolves a folder path that is relative to the Active Root into a full
+        /// Unity asset path. Examples (Active Root = "Assets/GameA"):
+        ///   "Art/Textures"   → "Assets/GameA/Art/Textures"
+        ///   "Level/Prefabs"  → "Assets/GameA/Level/Prefabs"
+        /// </summary>
+        
         // ── Private helpers ──────────────────────────────────────────────────────
 
         private static string ProjectRoot =>
@@ -460,12 +436,12 @@ namespace GlyphLabs.PristinePipeline
         /// <summary>
         /// Ensures a folder exists in the AssetDatabase, creating each missing
         /// segment of the path using AssetDatabase.CreateFolder so Unity tracks it.
+        /// Accepts full Unity asset paths (starting with "Assets/").
         /// </summary>
         private static void EnsureAssetFolderExists(string folderPath)
         {
             if (AssetDatabase.IsValidFolder(folderPath)) return;
 
-            // Walk the path segment by segment and create any missing folders
             string[] segments = folderPath.Split('/');
             string current = segments[0];
 

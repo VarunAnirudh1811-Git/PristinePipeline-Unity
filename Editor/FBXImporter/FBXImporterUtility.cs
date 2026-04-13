@@ -11,22 +11,16 @@ namespace GlyphLabs.PristinePipeline
     /// Stateless utility methods for the FBX Importer.
     /// No EditorWindow dependency — safe to call from any editor context.
     ///
-    /// Phase 4 methods: profile persistence, naming validation, wildcard matching,
-    /// FindMatchingPreset, ApplyPreset (ModelImporter settings), ReprocessAll.
-    ///
-    /// Phase 5 additions: CreateMaterials, FindAndAssignTextures, GeneratePrefab.
-    /// These run after Unity has finished processing the model (post-import).
-    /// They are called from FBXImporterProcessor.OnPostprocessModel and can also
-    /// be triggered manually from FBXImporterTab.
-    ///
-    /// Enum fields on FBXImportPreset are accessed via FBXImportPresetEditorExtensions
-    /// so the Runtime type carries no UnityEditor dependency.
+    /// v1.2 — Active Root refactor:
+    ///   All folder paths on FBXImportPreset (materialsFolder, texturesFolder,
+    ///   prefabsFolder) are now stored as paths relative to the Active Root
+    ///   (ToolSettings.ActiveRootPath). They must NOT start with "Assets/".
+    ///   This utility resolves them to full Unity asset paths via ResolveFolder()
+    ///   at every point of use. Validation rejects paths that start with "Assets/".
     /// </summary>
     public static class FBXImporterUtility
     {
         // ── Texture suffix maps ──────────────────────────────────────────────────
-        // These are the canonical suffix sets searched when assigning textures.
-        // Order within each array does not matter — all are searched.
 
         private static readonly string[] BaseColorSuffixes = { "_BC", "_BaseColor", "_Albedo", "_D", "_Diffuse" };
         private static readonly string[] NormalSuffixes = { "_N", "_Normal", "_NRM" };
@@ -76,8 +70,9 @@ namespace GlyphLabs.PristinePipeline
             }
         }
 
-        public static string[] GetProfileDisplayNames(List<FBXImportProfile> profiles) {
-           return profiles
+        public static string[] GetProfileDisplayNames(List<FBXImportProfile> profiles)
+        {
+            return profiles
                 .Select(p => p.isBuiltIn ? $"{p.profileName} (Built-in)" : p.profileName)
                 .ToArray();
         }
@@ -151,7 +146,7 @@ namespace GlyphLabs.PristinePipeline
             return clone;
         }
 
-        // ── Profile import / export ─────────────────────────────────────────────
+        // ── Profile import / export ──────────────────────────────────────────────
 
         public static void ExportProfile(FBXImportProfile profile)
         {
@@ -211,12 +206,8 @@ namespace GlyphLabs.PristinePipeline
                 profile.enableAmbientOcclusion = data.enableAmbientOcclusion;
 
                 var rules = data.rules ?? new List<FBXImportRule>();
-
                 foreach (var rule in rules)
-                {
-                    if (rule?.preset != null)
-                        SanitizePreset(rule.preset);
-                }
+                    if (rule?.preset != null) SanitizePreset(rule.preset);
                 profile.SetRules(rules);
 
                 AssetDatabase.CreateAsset(profile, assetPath);
@@ -233,6 +224,11 @@ namespace GlyphLabs.PristinePipeline
             }
         }
 
+        /// <summary>
+        /// Sanitizes a preset loaded from JSON. Strips any "Assets/" prefix that may
+        /// exist in data exported before v1.2 so old profiles remain usable.
+        /// Also resets any blank or zero fields to safe defaults.
+        /// </summary>
         private static void SanitizePreset(FBXImportPreset preset)
         {
             if (preset == null) return;
@@ -240,14 +236,14 @@ namespace GlyphLabs.PristinePipeline
             if (string.IsNullOrWhiteSpace(preset.materialPrefix))
                 preset.materialPrefix = "M_";
 
-            if (string.IsNullOrWhiteSpace(preset.materialsFolder))
-                preset.materialsFolder = "Assets/Art/Materials";
+            preset.materialsFolder = StripAssetsPrefix(
+                string.IsNullOrWhiteSpace(preset.materialsFolder) ? "Art/Materials" : preset.materialsFolder);
 
-            if (string.IsNullOrWhiteSpace(preset.texturesFolder))
-                preset.texturesFolder = "Assets/Art/Textures";
+            preset.texturesFolder = StripAssetsPrefix(
+                string.IsNullOrWhiteSpace(preset.texturesFolder) ? "Art/Textures" : preset.texturesFolder);
 
-            if (string.IsNullOrWhiteSpace(preset.prefabsFolder))
-                preset.prefabsFolder = "Assets/Art/Prefabs";
+            preset.prefabsFolder = StripAssetsPrefix(
+                string.IsNullOrWhiteSpace(preset.prefabsFolder) ? "Level/Prefabs" : preset.prefabsFolder);
 
             if (preset.scaleFactor <= 0f)
                 preset.scaleFactor = 1.0f;
@@ -271,7 +267,6 @@ namespace GlyphLabs.PristinePipeline
         /// <summary>
         /// Returns true when the FBX filename starts with at least one valid prefix
         /// from the profile, or when the profile's prefix list is empty.
-        /// The caller decides whether a false result blocks or warns.
         /// </summary>
         public static bool ValidateName(FBXImportProfile profile, string assetPath)
         {
@@ -306,8 +301,7 @@ namespace GlyphLabs.PristinePipeline
                 lastMatch = rule.preset;
             }
 
-            if (lastMatch != null)
-                return lastMatch;
+            if (lastMatch != null) return lastMatch;
 
             Debug.LogWarning(
                 $"{ToolInfo.LogPrefix} No rule matched '{Path.GetFileName(assetPath)}'. " +
@@ -319,7 +313,6 @@ namespace GlyphLabs.PristinePipeline
         /// <summary>
         /// Wildcard pattern matching — * (any sequence) and ? (any single char).
         /// Case-insensitive. Dynamic programming, handles all edge cases.
-        /// Replace this method body with Regex.IsMatch to upgrade in future.
         /// </summary>
         public static bool MatchesWildcard(string input, string pattern)
         {
@@ -352,12 +345,11 @@ namespace GlyphLabs.PristinePipeline
             return dp[inputLen, patternLen];
         }
 
-        // ── ModelImporter configuration (Phase 4) ────────────────────────────────
+        // ── ModelImporter configuration ──────────────────────────────────────────
 
         /// <summary>
         /// Applies all preset settings to a ModelImporter.
-        /// Must be called from OnPreprocessModel — importer has not run yet at that point.
-        /// Uses FBXImportPresetEditorExtensions for the enum fields.
+        /// Must be called from OnPreprocessModel — the importer has not run yet at that point.
         /// </summary>
         public static void ApplyPreset(ModelImporter importer, FBXImportPreset preset)
         {
@@ -374,15 +366,15 @@ namespace GlyphLabs.PristinePipeline
             importer.swapUVChannels = preset.swapUVs;
         }
 
-        // ── Phase 5 — material creation ──────────────────────────────────────────
+        // ── Material creation ────────────────────────────────────────────────────
 
         /// <summary>
         /// Creates materials for each embedded material slot in the imported FBX.
-        /// Uses URP Lit shader. Skips creation if a material already exists at the
-        /// expected path. Returns the list of materials that were created or found.
+        /// Uses URP Lit shader (falls back to Standard).
+        /// Skips creation if a material already exists at the expected path.
+        /// Returns the list of materials that were created or found.
         ///
-        /// Called from FBXImporterProcessor.OnPostprocessModel after Unity has
-        /// extracted mesh data and material names from the file.
+        /// preset.materialsFolder is resolved relative to ActiveRootPath.
         /// </summary>
         public static List<Material> CreateMaterials(
             GameObject importedModel,
@@ -390,14 +382,11 @@ namespace GlyphLabs.PristinePipeline
             string fbxAssetPath)
         {
             if (importedModel == null || preset == null) return new List<Material>();
+            if (string.IsNullOrWhiteSpace(preset.materialsFolder)) return new List<Material>();
 
-            if (string.IsNullOrWhiteSpace(preset.materialsFolder))
-                return new List<Material>();
-
-            string folder = preset.materialsFolder.TrimEnd('/');
+            string folder = ToolSettings.ResolveRelativeToActiveRoot(preset.materialsFolder);
             EnsureAssetFolderExists(folder);
 
-            // Collect all unique material names from the imported hierarchy
             var renderers = importedModel.GetComponentsInChildren<Renderer>(includeInactive: true);
             var materialNames = renderers
                 .SelectMany(r => r.sharedMaterials)
@@ -407,42 +396,37 @@ namespace GlyphLabs.PristinePipeline
                 .ToList();
 
             var shader = Shader.Find("Universal Render Pipeline/Lit");
+
             if (shader == null)
             {
-                // Fallback — Standard works in non-URP projects
                 shader = Shader.Find("Standard");
-                if (shader == null)
-                {
-                    Debug.LogError(
-                        $"{ToolInfo.LogPrefix} Could not find URP Lit or Standard shader. " +
-                        $"Material creation skipped for '{Path.GetFileName(fbxAssetPath)}'.");
-                    return new List<Material>();
-                }
-
-                Debug.LogWarning(
-                    $"{ToolInfo.LogPrefix} URP Lit shader not found — falling back to Standard. " +
-                    $"Is URP installed?");
             }
+
+            if (shader == null)
+            {
+                Debug.LogError(
+                    $"{ToolInfo.LogPrefix} Could not find URP Lit or Standard shader. " +
+                    $"Material creation skipped for '{Path.GetFileName(fbxAssetPath)}'.");
+                return new List<Material>();
+            }
+
+            if (shader.name == "Standard")
+                Debug.LogWarning(
+                    $"{ToolInfo.LogPrefix} URP Lit shader not found — falling back to Standard. Is URP installed?");
 
             var created = new List<Material>();
 
             foreach (string rawName in materialNames)
             {
-                // Strip any existing prefix the DCC tool may have embedded
                 string baseName = StripKnownPrefixes(rawName);
                 string matName = string.IsNullOrWhiteSpace(preset.materialPrefix)
                     ? baseName
                     : preset.materialPrefix + baseName;
 
-                string matPath = Path.Combine(folder, matName + ".mat").Replace("\\", "/");
+                string matPath = folder + "/" + matName + ".mat";
 
-                // Load existing — never overwrite
                 var existing = AssetDatabase.LoadAssetAtPath<Material>(matPath);
-                if (existing != null)
-                {
-                    created.Add(existing);
-                    continue;
-                }
+                if (existing != null) { created.Add(existing); continue; }
 
                 var mat = new Material(shader) { name = matName };
                 AssetDatabase.CreateAsset(mat, matPath);
@@ -451,28 +435,17 @@ namespace GlyphLabs.PristinePipeline
                 Debug.Log($"{ToolInfo.LogPrefix} Created material: {matPath}");
             }
 
-            if (created.Count > 0)
-                AssetDatabase.Refresh();
+            if (created.Count > 0) AssetDatabase.Refresh();
 
             return created;
         }
 
+        // ── Texture assignment ───────────────────────────────────────────────────
+
         /// <summary>
-        /// Searches the textures folder for textures matching the given material name
-        /// and assigns them to the correct slots on the material.
-        ///
-        /// Search strategy:
-        ///   Strip the material prefix from matName → get baseName.
-        ///   Look for files named baseName + suffix + any image extension.
-        ///   Search is not recursive — only the top level of texturesFolder is searched.
-        ///
-        /// Suffix mapping (all configurable via the suffix arrays at the top of this file):
-        ///   _BC / _BaseColor  → _BaseMap / _MainTex
-        ///   _N / _Normal      → _BumpMap
-        ///   _ORM              → packed: R=AO, G=Roughness, B=Metallic
-        ///   _M / _Metallic    → _MetallicGlossMap
-        ///   _E / _Emissive    → _EmissionMap  (only when profile.enableEmission is true)
-        ///   _AO               → _OcclusionMap (only when profile.enableAmbientOcclusion is true)
+        /// Searches the textures folder (resolved relative to ActiveRootPath) for
+        /// textures matching the given material name and assigns them to the material.
+        /// Search is not recursive — top level of the resolved textures folder only.
         /// </summary>
         public static void FindAndAssignTextures(
             Material material,
@@ -482,7 +455,8 @@ namespace GlyphLabs.PristinePipeline
         {
             if (material == null || preset == null || profile == null) return;
 
-            string folder = preset.texturesFolder.TrimEnd('/');
+            string folder = ToolSettings.ResolveRelativeToActiveRoot(preset.texturesFolder);
+
             if (!AssetDatabase.IsValidFolder(folder))
             {
                 Debug.LogWarning(
@@ -491,7 +465,6 @@ namespace GlyphLabs.PristinePipeline
                 return;
             }
 
-            // Derive the base name used in texture file names by stripping the material prefix
             string baseName = string.IsNullOrWhiteSpace(preset.materialPrefix)
                 ? materialName
                 : materialName.StartsWith(preset.materialPrefix, StringComparison.OrdinalIgnoreCase)
@@ -500,16 +473,14 @@ namespace GlyphLabs.PristinePipeline
 
             bool dirty = false;
 
-            // Base Color
             var baseColor = FindTexture(folder, baseName, BaseColorSuffixes);
             if (baseColor != null)
             {
                 material.SetTexture("_BaseMap", baseColor);
-                material.SetTexture("_MainTex", baseColor);   // Built-in compat
+                material.SetTexture("_MainTex", baseColor);
                 dirty = true;
             }
 
-            // Normal Map
             var normal = FindTexture(folder, baseName, NormalSuffixes);
             if (normal != null)
             {
@@ -518,13 +489,9 @@ namespace GlyphLabs.PristinePipeline
                 dirty = true;
             }
 
-            // ORM (packed Occlusion/Roughness/Metallic)
             var orm = FindTexture(folder, baseName, OrmSuffixes);
             if (orm != null)
             {
-                // In URP Lit: R channel → Metallic, G channel → Smoothness (inverted roughness),
-                // packed via the same map approach Unity uses for MetallicGlossMap.
-                // The shader reads all three channels from this texture.
                 material.SetTexture("_MetallicGlossMap", orm);
                 material.SetTexture("_OcclusionMap", orm);
                 material.EnableKeyword("_METALLICSPECGLOSSMAP");
@@ -532,7 +499,6 @@ namespace GlyphLabs.PristinePipeline
             }
             else
             {
-                // Individual Metallic/Smoothness
                 var metallic = FindTexture(folder, baseName, MetallicSuffixes);
                 if (metallic != null)
                 {
@@ -541,7 +507,6 @@ namespace GlyphLabs.PristinePipeline
                     dirty = true;
                 }
 
-                // AO (only if no ORM)
                 if (profile.enableAmbientOcclusion)
                 {
                     var ao = FindTexture(folder, baseName, AoSuffixes);
@@ -553,7 +518,6 @@ namespace GlyphLabs.PristinePipeline
                 }
             }
 
-            // Emission
             if (profile.enableEmission)
             {
                 var emissive = FindTexture(folder, baseName, EmissiveSuffixes);
@@ -561,46 +525,36 @@ namespace GlyphLabs.PristinePipeline
                 {
                     material.SetTexture("_EmissionMap", emissive);
                     material.EnableKeyword("_EMISSION");
-                    // Default emission color to white so the map is visible
                     material.SetColor("_EmissionColor", Color.white);
                     dirty = true;
                 }
             }
 
-            if (dirty)
-                EditorUtility.SetDirty(material);
+            if (dirty) EditorUtility.SetDirty(material);
         }
 
-        // ── Phase 5 — prefab generation ──────────────────────────────────────────
+        // ── Prefab generation ────────────────────────────────────────────────────
 
         /// <summary>
         /// Generates a prefab from the imported FBX asset.
+        /// preset.prefabsFolder is resolved relative to ActiveRootPath.
         /// Skips creation if a prefab already exists at the destination path.
-        /// When preset.lightmapStatic is true, marks the prefab root ContributeGI.
-        ///
-        /// Returns the path of the prefab asset, or null if generation was skipped
-        /// or failed.
-        ///
-        /// Called from FBXImporterProcessor after materials have been applied, or
-        /// directly from FBXImporterTab via the manual Generate button.
+        /// Returns the path of the prefab asset, or null if generation was skipped or failed.
         /// </summary>
         public static string GeneratePrefab(string fbxAssetPath, FBXImportPreset preset)
         {
             if (string.IsNullOrEmpty(fbxAssetPath) || preset == null) return null;
 
-            string folder = preset.prefabsFolder.TrimEnd('/');
+            string folder = ToolSettings.ResolveRelativeToActiveRoot(preset.prefabsFolder);
             string baseName = Path.GetFileNameWithoutExtension(fbxAssetPath);
-            string prefabPath = Path.Combine(folder, baseName + ".prefab").Replace("\\", "/");
+            string prefabPath = folder + "/" + baseName + ".prefab";
 
-            // Never overwrite an existing prefab
             if (AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath) != null)
             {
-                Debug.Log(
-                    $"{ToolInfo.LogPrefix} Prefab already exists at '{prefabPath}' — skipping.");
+                Debug.Log($"{ToolInfo.LogPrefix} Prefab already exists at '{prefabPath}' — skipping.");
                 return prefabPath;
             }
 
-            // Load the imported mesh asset
             var sourceMesh = AssetDatabase.LoadAssetAtPath<GameObject>(fbxAssetPath);
             if (sourceMesh == null)
             {
@@ -612,16 +566,11 @@ namespace GlyphLabs.PristinePipeline
 
             EnsureAssetFolderExists(folder);
 
-            // Instantiate, configure, save as prefab, then destroy the scene instance
             var instance = UnityEngine.Object.Instantiate(sourceMesh);
             instance.name = baseName;
 
             if (preset.lightmapStatic)
-            {
-                GameObjectUtility.SetStaticEditorFlags(
-                    instance,
-                    StaticEditorFlags.ContributeGI);
-            }
+                GameObjectUtility.SetStaticEditorFlags(instance, StaticEditorFlags.ContributeGI);
 
             var prefab = PrefabUtility.SaveAsPrefabAsset(instance, prefabPath);
             UnityEngine.Object.DestroyImmediate(instance);
@@ -637,13 +586,10 @@ namespace GlyphLabs.PristinePipeline
             return prefabPath;
         }
 
-        // ── Manual reprocess ─────────────────────────────────────────────────────
+        // ── Reprocess ────────────────────────────────────────────────────────────
 
         /// <summary>
-        /// Forces a reimport of a single FBX asset. This triggers OnPreprocessModel
-        /// in FBXImporterProcessor so mesh settings are reapplied.
-        /// Material and prefab steps require post-import access and are NOT re-run
-        /// by this method alone — use ReprocessAssetFull for a complete pass.
+        /// Forces a reimport of a single FBX asset, triggering OnPreprocessModel.
         /// </summary>
         public static bool ReprocessAsset(string assetPath, FBXImportProfile profile)
         {
@@ -679,7 +625,6 @@ namespace GlyphLabs.PristinePipeline
         /// <summary>
         /// Full post-import pass for a single already-imported FBX:
         /// creates materials, assigns textures, and generates a prefab if configured.
-        /// Call this after the asset has been imported (not from OnPreprocessModel).
         /// </summary>
         public static void RunPostImportSteps(
             string fbxAssetPath,
@@ -692,22 +637,17 @@ namespace GlyphLabs.PristinePipeline
             if (model == null)
             {
                 Debug.LogWarning(
-                    $"{ToolInfo.LogPrefix} RunPostImportSteps: could not load " +
-                    $"'{fbxAssetPath}' as GameObject.");
+                    $"{ToolInfo.LogPrefix} RunPostImportSteps: could not load '{fbxAssetPath}' as GameObject.");
                 return;
             }
 
-            // 1 — Create materials
             var materials = CreateMaterials(model, preset, fbxAssetPath);
 
-            // 2 — Assign textures to each created material
             foreach (var mat in materials)
                 FindAndAssignTextures(mat, mat.name, preset, profile);
 
-            // 3 — Save all material changes
             AssetDatabase.SaveAssets();
 
-            // 4 — Generate prefab (if toggled or called explicitly)
             if (preset.generatePrefab)
                 GeneratePrefab(fbxAssetPath, preset);
 
@@ -716,7 +656,7 @@ namespace GlyphLabs.PristinePipeline
 
         /// <summary>
         /// Runs a manual reprocess pass over all FBX files in the project.
-        /// Triggers reimport (which fires OnPreprocessModel) then runs post-import steps.
+        /// Triggers reimport then runs post-import steps.
         /// Returns the count of assets processed.
         /// </summary>
         public static int ReprocessAll(FBXImportProfile profile)
@@ -732,7 +672,10 @@ namespace GlyphLabs.PristinePipeline
             {
                 foreach (string path in allAssets)
                 {
-                    if (!path.StartsWith("Assets/")) continue;
+                    string root = ToolSettings.ActiveRootPath;
+
+                    if (!path.StartsWith(root + "/") && path != root)
+                        continue;
                     if (!path.EndsWith(".fbx", StringComparison.OrdinalIgnoreCase)) continue;
 
                     if (ReprocessAsset(path, profile))
@@ -745,8 +688,6 @@ namespace GlyphLabs.PristinePipeline
                 AssetDatabase.Refresh();
             }
 
-            // Post-import steps run after the batch reimport completes
-            // so the asset database is in a consistent state
             foreach (string path in allAssets)
             {
                 if (!path.StartsWith("Assets/")) continue;
@@ -765,6 +706,10 @@ namespace GlyphLabs.PristinePipeline
 
         // ── Rule validation ──────────────────────────────────────────────────────
 
+        /// <summary>
+        /// Returns validation messages for a single FBX import rule.
+        /// Folder paths on the preset must be relative — they must NOT start with "Assets/".
+        /// </summary>
         public static List<string> ValidateRule(FBXImportRule rule)
         {
             var messages = new List<string>();
@@ -773,21 +718,41 @@ namespace GlyphLabs.PristinePipeline
                 messages.Add("Name pattern cannot be empty.");
 
             if (rule.preset == null)
+            {
                 messages.Add("Preset is null — this should not happen.");
-            else if (rule.preset.scaleFactor <= 0f)
+                return messages;
+            }
+
+            if (rule.preset.scaleFactor <= 0f)
                 messages.Add("Scale factor must be greater than zero.");
+
+            if (!string.IsNullOrWhiteSpace(rule.preset.materialsFolder)
+                && rule.preset.materialsFolder.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase))
+                messages.Add("Materials folder must be a relative path — do not start with \"Assets/\".");
+
+            if (!string.IsNullOrWhiteSpace(rule.preset.texturesFolder)
+                && rule.preset.texturesFolder.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase))
+                messages.Add("Textures folder must be a relative path — do not start with \"Assets/\".");
+
+            if (!string.IsNullOrWhiteSpace(rule.preset.prefabsFolder)
+                && rule.preset.prefabsFolder.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase))
+                messages.Add("Prefabs folder must be a relative path — do not start with \"Assets/\".");
 
             return messages;
         }
 
-        // ── Private helpers ──────────────────────────────────────────────────────
+        // ── Path resolution ──────────────────────────────────────────────────────
 
         /// <summary>
-        /// Searches the given Unity asset folder (non-recursive) for a texture file
-        /// whose name matches baseName + one of the provided suffixes.
-        /// Returns the first match found, or null.
-        /// Supported image extensions: png, tga, jpg, jpeg, exr, hdr, psd.
+        /// Resolves a folder path relative to the Active Root into a full Unity asset path.
+        /// Examples (Active Root = "Assets/GameA"):
+        ///   "Art/Materials"  → "Assets/GameA/Art/Materials"
+        ///   "Level/Prefabs"  → "Assets/GameA/Level/Prefabs"
         /// </summary>
+        
+
+        // ── Private helpers ──────────────────────────────────────────────────────
+
         private static Texture2D FindTexture(string folder, string baseName, string[] suffixes)
         {
             string[] imageExtensions = { "png", "tga", "jpg", "jpeg", "exr", "hdr", "psd" };
@@ -798,27 +763,31 @@ namespace GlyphLabs.PristinePipeline
                 {
                     string path = $"{folder}/{baseName}{suffix}.{ext}";
                     var tex = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
-                    if (tex != null)
-                        return tex;
+                    if (tex != null) return tex;
                 }
             }
 
             return null;
         }
 
-        /// <summary>
-        /// Strips known material name prefixes (M_, MI_, MAT_) that DCC tools
-        /// sometimes embed in exported material names to get to the base name.
-        /// </summary>
         private static string StripKnownPrefixes(string name)
         {
             string[] knownPrefixes = { "M_", "MI_", "MAT_", "Mat_", "mat_" };
             foreach (string prefix in knownPrefixes)
-            {
                 if (name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
                     return name[prefix.Length..];
-            }
             return name;
+        }
+
+        /// <summary>
+        /// Strips a leading "Assets/" from a path, returning just the relative portion.
+        /// Used when sanitizing profiles exported before v1.2.
+        /// </summary>
+        private static string StripAssetsPrefix(string path)
+        {
+            if (path.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase))
+                return path["Assets/".Length..];
+            return path;
         }
 
         private static string ProjectRoot =>
@@ -857,8 +826,7 @@ namespace GlyphLabs.PristinePipeline
 
             while (File.Exists(ToAbsolutePath(candidate)))
             {
-                candidate = Path.Combine(
-                    folderPath, $"{baseName}{counter}.asset").Replace("\\", "/");
+                candidate = Path.Combine(folderPath, $"{baseName}{counter}.asset").Replace("\\", "/");
                 counter++;
             }
 

@@ -28,18 +28,48 @@ namespace GlyphLabs.PristinePipeline
             set => EditorPrefs.SetInt(Key(ActiveTabKey), value);
         }
 
+        // ── Active root ───────────────────────────────────────────────────────────
+
+
+        private const string ActiveRootKey = "ActiveRoot";
+
+        /// <summary>
+        /// The root Unity asset path that all tools operate under.
+        /// Defaults to "Assets". All tools resolve their working paths relative to this.
+        /// Never null or empty — validated on set.
+        /// </summary>
+        public static string ActiveRootPath
+        {
+            get
+            {
+                string value = EditorPrefs.GetString(Key(ActiveRootKey), "Assets");
+                return ValidateRoot(value);
+            }
+            set
+            {
+                string validated = ValidateRoot(value);
+                EditorPrefs.SetString(Key(ActiveRootKey), validated);
+            }
+        }
+
+        private static string ValidateRoot(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+                return "Assets";
+
+            path = path.Replace("\\", "/").Trim().TrimEnd('/');
+
+            if (!path.StartsWith("Assets"))
+                return "Assets";
+
+            return path;
+        }
+
         // ── Folder Generator ─────────────────────────────────────────────────────
 
         private const string FolderGen_ActiveTemplateGuidKey = "FolderGen.ActiveTemplateGuid";
         private const string FolderGen_TemplateSavePathKey = "FolderGen.TemplateSavePath";
-        private const string FolderGen_UseProjectRootKey = "FolderGen.UseProjectRoot";
         private const string FolderGen_AddKeepFilesKey = "FolderGen.AddKeepFiles";
-
-        public static bool FolderGen_UseProjectRoot
-        {
-            get => EditorPrefs.GetBool(Key(FolderGen_UseProjectRootKey), false);
-            set => EditorPrefs.SetBool(Key(FolderGen_UseProjectRootKey), value);
-        }
 
         public static bool FolderGen_AddKeepFiles
         {
@@ -68,7 +98,7 @@ namespace GlyphLabs.PristinePipeline
         private const string Organizer_EnabledKey = "Organizer.Enabled";
         private const string Organizer_ActiveProfileGuidKey = "Organizer.ActiveProfileGuid";
         private const string Organizer_ProfileSavePathKey = "Organizer.ProfileSavePath";
-        
+
         public static bool Organizer_Enabled
         {
             get => EditorPrefs.GetBool(Key(Organizer_EnabledKey), true);
@@ -89,9 +119,9 @@ namespace GlyphLabs.PristinePipeline
 
         // ── FBX Importer ─────────────────────────────────────────────────────────
 
-        private const string FBX_EnabledKey           = "FBX.Enabled";
+        private const string FBX_EnabledKey = "FBX.Enabled";
         private const string FBX_ActiveProfileGuidKey = "FBX.ActiveProfileGuid";
-        private const string FBX_ProfileSavePathKey   = "FBX.ProfileSavePath";
+        private const string FBX_ProfileSavePathKey = "FBX.ProfileSavePath";
 
         public static bool FBX_Enabled
         {
@@ -113,6 +143,16 @@ namespace GlyphLabs.PristinePipeline
 
         // ── Utilities ────────────────────────────────────────────────────────────
 
+
+        public static string ResolveRelativeToActiveRoot(string relativePath)
+        {
+            string root = ActiveRootPath.TrimEnd('/');
+            return string.IsNullOrWhiteSpace(relativePath)
+                ? root
+                : root + "/" + relativePath.Trim('/');
+        }
+
+
         /// <summary>
         /// Wipes all Pristine Pipeline EditorPrefs entries.
         /// Exposed for the Settings tab reset button.
@@ -120,9 +160,9 @@ namespace GlyphLabs.PristinePipeline
         public static void ResetAll()
         {
             EditorPrefs.DeleteKey(Key(ActiveTabKey));
+            EditorPrefs.DeleteKey(Key(ActiveRootKey));
             EditorPrefs.DeleteKey(Key(FolderGen_ActiveTemplateGuidKey));
             EditorPrefs.DeleteKey(Key(FolderGen_TemplateSavePathKey));
-            EditorPrefs.DeleteKey(Key(FolderGen_UseProjectRootKey));
             EditorPrefs.DeleteKey(Key(FolderGen_AddKeepFilesKey));
             EditorPrefs.DeleteKey(Key(Organizer_EnabledKey));
             EditorPrefs.DeleteKey(Key(Organizer_ActiveProfileGuidKey));

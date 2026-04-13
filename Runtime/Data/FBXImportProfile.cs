@@ -71,19 +71,22 @@ namespace GlyphLabs.PristinePipeline
         [Tooltip("Swaps UV channel 0 and 1. Fixes assets exported with inverted UV order.")]
         public bool swapUVs = false;
 
-        // ── Phase 5 — material, texture, prefab settings ─────────────────────────
+        // ── Material, texture, prefab settings ─────────────────────────
+        // All paths are relative to the Active Root (ToolSettings.ActiveRootPath).
+        // They must NOT begin with "Assets/". FBXImporterUtility prepends ActiveRootPath
+        // when constructing full Unity asset paths.
 
         [Tooltip("Prefix prepended to created material names — e.g. M_ produces M_Rock.")]
         public string materialPrefix = "M_";
 
-        [Tooltip("Unity asset path where created materials are saved — e.g. Assets/Art/Materials.")]
-        public string materialsFolder = "Assets/Art/Materials";
+        [Tooltip("Path relative to Active Root where created materials are saved — e.g. Art/Materials.")]
+        public string materialsFolder = "Art/Materials";
 
-        [Tooltip("Unity asset path searched for matching textures — e.g. Assets/Art/Textures. Not recursive.")]
-        public string texturesFolder = "Assets/Art/Textures";
+        [Tooltip("Path relative to Active Root searched for matching textures — e.g. Art/Textures. Not recursive.")]
+        public string texturesFolder = "Art/Textures";
 
-        [Tooltip("Unity asset path where generated prefabs are saved — e.g. Assets/Prefabs/Props.")]
-        public string prefabsFolder = "Assets/Prefabs/Props";
+        [Tooltip("Path relative to Active Root where generated prefabs are saved — e.g. Level/Prefabs.")]
+        public string prefabsFolder = "Level/Prefabs";
 
         [Tooltip("When on, a prefab is automatically generated on import. Can always be triggered manually.")]
         public bool generatePrefab = false;

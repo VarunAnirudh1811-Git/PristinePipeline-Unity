@@ -1,5 +1,4 @@
 ﻿using System.Collections.Generic;
-using System.IO;
 using UnityEditor;
 using UnityEditor.IMGUI.Controls;
 using UnityEngine;
@@ -32,9 +31,7 @@ namespace GlyphLabs.PristinePipeline
         private string[] _templateNames = new string[0];
         private int _selectedIndex = 0;
 
-        private bool _useProjectRoot;
         private bool _addKeepFiles;
-        private string _projectName = "";
 
         private bool _templateManagementExpanded = false;
 
@@ -56,7 +53,6 @@ namespace GlyphLabs.PristinePipeline
 
         public void OnEnable()
         {
-            _useProjectRoot = ToolSettings.FolderGen_UseProjectRoot;
             _addKeepFiles   = ToolSettings.FolderGen_AddKeepFiles;
 
             _treeViewState = new TreeViewState<int>();
@@ -83,7 +79,7 @@ namespace GlyphLabs.PristinePipeline
 
         private void DrawListMode(EditorWindow parentWindow)
         {
-            // 1 — Template selector (compact) + primary action
+            // 1 — Template selector + primary action
             DrawTemplateSelectorAndAction();
             PristinePipelineWindow.DrawDivider();
 
@@ -104,8 +100,7 @@ namespace GlyphLabs.PristinePipeline
         private void DrawTemplateSelectorAndAction()
         {
             // ── Primary action — promoted to top ─────────────────────────────────
-            bool canGenerate = ActiveTemplate != null &&
-                               (!_useProjectRoot || !string.IsNullOrWhiteSpace(_projectName));
+            bool canGenerate = ActiveTemplate != null;
 
             GUI.enabled = canGenerate;
 
@@ -120,26 +115,16 @@ namespace GlyphLabs.PristinePipeline
                     : "▶  Generate Folder Structure",
                 GUILayout.Height(34)))
             {
-                string rootPath = FolderGeneratorUtility.ResolveRootPath(
-                    _useProjectRoot, _projectName);
-
-                FolderGeneratorUtility.CreateFolders(ActiveTemplate, rootPath, _addKeepFiles);
+                FolderGeneratorUtility.CreateFolders(ActiveTemplate, _addKeepFiles);
 
                 EditorUtility.DisplayDialog(
                     "Folders Created",
-                    $"Folder structure generated under:\n{rootPath}",
+                    $"Folder structure generated under:\n{ToolSettings.ActiveRootPath}",
                     "OK");
             }
 
             GUI.backgroundColor = prev;
             GUI.enabled = true;
-
-            if (!canGenerate && _useProjectRoot && string.IsNullOrWhiteSpace(_projectName))
-                EditorGUILayout.HelpBox(
-                    "Enter a project name below to enable generation.",
-                    MessageType.Warning);
-
-            EditorGUILayout.Space(2);
 
             EditorGUILayout.Space(6);
 
@@ -192,25 +177,6 @@ namespace GlyphLabs.PristinePipeline
             EditorGUILayout.LabelField("Options", EditorStyles.boldLabel);
             EditorGUILayout.Space(2);
 
-            bool newUseProjectRoot = EditorGUILayout.Toggle(
-                new GUIContent("Use Project Root Folder",
-                    "Nest all folders under Assets/<ProjectName> instead of directly under Assets."),
-                _useProjectRoot);
-
-            if (newUseProjectRoot != _useProjectRoot)
-            {
-                _useProjectRoot = newUseProjectRoot;
-                ToolSettings.FolderGen_UseProjectRoot = _useProjectRoot;
-                InvalidateTreeCache();
-            }
-
-            if (_useProjectRoot)
-            {
-                _projectName = EditorGUILayout.TextField(
-                    new GUIContent("Project Name", "The subfolder created under Assets/."),
-                    _projectName);
-            }
-
             bool newAddKeepFiles = EditorGUILayout.Toggle(
                 new GUIContent("Add .keep in Empty Folders",
                     "Places a .keep file in empty folders so they are tracked by version control."),
@@ -248,13 +214,15 @@ namespace GlyphLabs.PristinePipeline
                 return;
             }
 
-            string currentRoot = FolderGeneratorUtility.ResolveRootPath(_useProjectRoot, _projectName);
+            // Tree preview reflects the live Active Root
+            string currentRoot = ToolSettings.ActiveRootPath;
 
             if (ActiveTemplate != _lastTreeTemplate || currentRoot != _lastTreeRootPath)
             {
                 if (!EditorGUIUtility.editingTextField)
                 {
                     _treeView.Reload(ActiveTemplate, currentRoot);
+
                     _lastTreeTemplate = ActiveTemplate;
                     _lastTreeRootPath = currentRoot;
                 }
@@ -410,11 +378,10 @@ namespace GlyphLabs.PristinePipeline
         }
 
         private void ForceTreeReload()
-        {
-            string root = FolderGeneratorUtility.ResolveRootPath(_useProjectRoot, _projectName);
-            _treeView.Reload(ActiveTemplate, root);
+        {            
+            _treeView.Reload(ActiveTemplate, ToolSettings.ActiveRootPath);
             _lastTreeTemplate = ActiveTemplate;
-            _lastTreeRootPath = root;
+            _lastTreeRootPath = ToolSettings.ActiveRootPath;
         }
 
         private void InvalidateTreeCache()

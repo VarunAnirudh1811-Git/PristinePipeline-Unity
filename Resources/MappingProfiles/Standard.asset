@@ -18,59 +18,59 @@ MonoBehaviour:
   rules:
   - extension: fbx
     namePattern: CH_*
-    destinationFolder: Assets/Art/Models/Characters
+    destinationFolder: Art/Models/Characters
     note: Character models
   - extension: fbx
     namePattern: ENV_*
-    destinationFolder: Assets/Art/Models/Environment
+    destinationFolder: Art/Models/Environment
     note: Environment models
   - extension: fbx
     namePattern: PR_*
-    destinationFolder: Assets/Art/Models/Props
+    destinationFolder: Art/Models/Props
     note: Prop models
   - extension: fbx
     namePattern: COL_*
-    destinationFolder: Assets/Art/Models/Colliders
+    destinationFolder: Art/Models/Colliders
     note: Colliders
   - extension: png
     namePattern: T_*
-    destinationFolder: Assets/Art/Textures
+    destinationFolder: Art/Textures
     note: All textures (BaseColor, Normal, MS, etc.)
   - extension: mat
     namePattern: 
-    destinationFolder: Assets/Art/Materials
+    destinationFolder: Art/Materials
     note: All materials
   - extension: shader
     namePattern: 
-    destinationFolder: Assets/Scripts/Shaders
+    destinationFolder: Scripts/Shaders
     note: HLSL shaders
   - extension: shadergraph
     namePattern: 
-    destinationFolder: Assets/Art/ShaderGraphs
+    destinationFolder: Art/ShaderGraphs
     note: Shader Graph assets
   - extension: vfx
     namePattern: 
-    destinationFolder: Assets/Art/VisualFXGraphs
+    destinationFolder: Art/VisualFXGraphs
     note: VFX Graph assets
   - extension: prefab
     namePattern: CH_*
-    destinationFolder: Assets/Level/Prefabs/Characters
+    destinationFolder: Level/Prefabs/Characters
     note: Character prefabs
   - extension: prefab
     namePattern: ENV_*
-    destinationFolder: Assets/Level/Prefabs/Environment
+    destinationFolder: Level/Prefabs/Environment
     note: Environment prefabs
   - extension: prefab
     namePattern: PR_*
-    destinationFolder: Assets/Level/Prefabs/Props
+    destinationFolder: Level/Prefabs/Props
     note: Prop prefabs
   - extension: prefab
     namePattern: UI_*
-    destinationFolder: Assets/Level/Prefabs/UI
+    destinationFolder: Level/Prefabs/UI
     note: UI prefabs
   - extension: unity
     namePattern: 
-    destinationFolder: Assets/Level/Scenes
+    destinationFolder: Level/Scenes
     note: Scenes
   - extension: wav
     namePattern: VO_*
@@ -78,13 +78,14 @@ MonoBehaviour:
     note: Dialogue
   - extension: wav
     namePattern: 
-    destinationFolder: Assets/Audio/SFX
+    destinationFolder: Audio/SFX
     note: Sound effects
   - extension: mp3
     namePattern: 
-    destinationFolder: Assets/Audio/Music
+    destinationFolder: Audio/Music
     note: Music
   - extension: ogg
     namePattern: 
-    destinationFolder: Assets/Audio/Ambience
+    destinationFolder: Audio/Ambience
     note: Ambience
+  isBuiltIn: 0

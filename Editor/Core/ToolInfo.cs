@@ -9,7 +9,7 @@ namespace GlyphLabs.PristinePipeline
     public static class ToolInfo
     {
         public const string ToolName = "Pristine Pipeline";
-        public const string Version = "1.1.0";
+        public const string Version = "1.2.0";
         public const string Author = "GlyphLabs";
         public const string MenuRoot = "GlyphLabs/" + ToolName;
         public const string LogPrefix = "[" + ToolName + "]";

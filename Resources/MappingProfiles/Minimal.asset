@@ -17,53 +17,54 @@ MonoBehaviour:
   rules:
   - extension: fbx
     namePattern: SM_*
-    destinationFolder: Assets/Art/Models
+    destinationFolder: Art/Models
     note: Static mesh models
   - extension: fbx
     namePattern: SK_*
-    destinationFolder: Assets/Art/Models
+    destinationFolder: Art/Models
     note: Skeletal meshes
   - extension: png
     namePattern: '*_B'
-    destinationFolder: Assets/Art/Textures
+    destinationFolder: Art/Textures
     note: Base color textures
   - extension: png
     namePattern: '*_N'
-    destinationFolder: Assets/Art/Textures
+    destinationFolder: Art/Textures
     note: Normal maps
   - extension: png
     namePattern: '*_MS'
-    destinationFolder: Assets/Art/Textures
+    destinationFolder: Art/Textures
     note: Packed ORM textures
   - extension: png
     namePattern: '*_UI_*'
-    destinationFolder: Assets/Art/UI/Graphics
+    destinationFolder: Art/UI/Graphics
     note: UI graphics
   - extension: ttf
     namePattern: 
-    destinationFolder: Assets/Art/UI/Fonts
+    destinationFolder: Art/UI/Fonts
     note: Font files
   - extension: shadergraph
     namePattern: 
-    destinationFolder: Assets/Art/ShaderGraphs
+    destinationFolder: Art/ShaderGraphs
     note: Shader Graph assets
   - extension: vfx
     namePattern: 
-    destinationFolder: Assets/Art/VisualFXGraphs
+    destinationFolder: Art/VisualFXGraphs
     note: VFX Graph assets
   - extension: wav
     namePattern: 
-    destinationFolder: Assets/Audio/SFX
+    destinationFolder: Audio/SFX
     note: Sound effects
   - extension: mp3
     namePattern: 
-    destinationFolder: Assets/Audio/Music
+    destinationFolder: Audio/Music
     note: Music files
   - extension: prefab
     namePattern: 
-    destinationFolder: Assets/Level/Prefabs
+    destinationFolder: Level/Prefabs
     note: Prefabs
   - extension: unity
     namePattern: 
-    destinationFolder: Assets/Level/Scenes
+    destinationFolder: Level/Scenes
     note: Unity scenes
+  isBuiltIn: 0
