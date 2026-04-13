@@ -18,6 +18,15 @@ namespace GlyphLabs.PristinePipeline
     ///   (ToolSettings.ActiveRootPath). They must NOT start with "Assets/". This utility
     ///   resolves them to full Unity asset paths by prepending ActiveRootPath at the
     ///   point of use (MoveAsset, EnsureAssetFolderExists).
+    ///    v1.2.1 — Scope control:
+    ///   Assets are only processed when they fall inside the defined scope:
+    ///     (a) Directly under Assets/ — non-recursive, parent dir == "Assets" exactly.
+    ///         This handles the "file dropped via the menu" adoption case.
+    ///     (b) Anywhere under the Active Root — recursive.
+    ///     (c) Anywhere under a user-defined additional scope path — recursive.
+    ///   Everything else (plugins, SDKs, package-imported assets) is never touched.
+    ///   Destination always resolves relative to Active Root regardless of where the
+    ///   source file was found.
     public static class AssetOrganizerUtility
     {
         // ── Profile loading ──────────────────────────────────────────────────────
@@ -226,6 +235,59 @@ namespace GlyphLabs.PristinePipeline
             public List<MappingRule> rules;
         }
 
+        // ── Scope control ────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Returns true when the given Unity asset path falls inside the organizer's
+        /// defined scope. Only assets in scope are ever moved, both by OrganizeAll
+        /// and by the automatic AssetOrganizerProcessor.
+        ///
+        /// Scope is defined as the union of three zones:
+        ///
+        ///   Zone A — Assets/ top level (non-recursive)
+        ///     Files whose immediate parent directory is exactly "Assets".
+        ///     This is the adoption zone: files dropped via the Unity menu or
+        ///     dragged onto the Project window root land here and need to be
+        ///     pulled into the Active Root.
+        ///     Example: "Assets/SM_Rock.fbx" → in scope
+        ///              "Assets/Plugins/SomeTool/mesh.fbx" → NOT in scope
+        ///
+        ///   Zone B — Active Root (recursive)
+        ///     Everything under ToolSettings.ActiveRootPath.
+        ///     Example (root = "Assets/GameA"): "Assets/GameA/Art/SM_Rock.fbx" → in scope
+        ///
+        ///   Zone C — User-defined additional paths (recursive)
+        ///     Each path in ToolSettings.Organizer_AdditionalScopePaths.
+        ///     Allows opt-in for specific third-party folders the user controls.
+        /// </summary>
+        public static bool IsInScope(string assetPath)
+        {
+            if (string.IsNullOrEmpty(assetPath)) return false;
+
+            // Zone A — non-recursive Assets/ top level
+            // Parent is exactly "Assets" when there is no second slash after "Assets/".
+            string parentDir = Path.GetDirectoryName(assetPath)?.Replace("\\", "/");
+            if (string.Equals(parentDir, "Assets", StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            // Zone B — Active Root (recursive)
+            string root = ToolSettings.ActiveRootPath.TrimEnd('/');
+            string rootPrefix = root + "/";
+            if (assetPath.StartsWith(rootPrefix, StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            // Zone C — additional scope paths (recursive)
+            foreach (string extra in ToolSettings.Organizer_AdditionalScopePaths)
+            {
+                if (string.IsNullOrWhiteSpace(extra)) continue;
+                string extraPrefix = extra.TrimEnd('/') + "/";
+                if (assetPath.StartsWith(extraPrefix, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+
+            return false;
+        }
+
         // ── Rule matching ────────────────────────────────────────────────────────
 
         /// <summary>
@@ -345,8 +407,9 @@ namespace GlyphLabs.PristinePipeline
         }
 
         /// <summary>
-        /// Runs a full organize pass over all assets in the project using the given profile.
-        /// Used by the Manual Organize button in the tab UI.
+        /// Runs a full organize pass using the given profile.
+        /// Only assets that pass IsInScope are considered — all others are ignored,
+        /// regardless of whether their extension matches a rule.
         /// Returns the number of assets successfully moved.
         /// </summary>
         public static int OrganizeAll(AssetMappingProfile profile, out int skipped)
@@ -366,6 +429,7 @@ namespace GlyphLabs.PristinePipeline
                 {
                     if (!assetPath.StartsWith("Assets/")) continue;
                     if (AssetDatabase.IsValidFolder(assetPath)) continue;
+                    if (!IsInScope(assetPath)) continue;
 
                     MappingRule rule = FindMatchingRule(profile, assetPath);
                     if (rule == null) continue;

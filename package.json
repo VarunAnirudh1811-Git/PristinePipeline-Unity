@@ -1,6 +1,6 @@
 {
   "name": "com.glyphlabs.pristinepipeline",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "displayName": "Pristine Pipeline",
   "description": "A Unity Editor toolkit for keeping your project clean and consistent. Includes a Folder Generator, Asset Organizer, and FBX Importer — all accessible from a single Editor window.",
   "unity": "6000.3",

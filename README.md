@@ -155,9 +155,9 @@ From the Active Root bar, you can:
 
 Pristine Pipeline only operates inside the Active Root.
 
-- Assets outside the Active Root are ignored
-- Third-party plugins and external assets are not modified
-- Folder paths in profiles are always relative to Active Root
+- ⚠️ Organizing assets moves files in your project.
+- Only assets inside the defined scope will be affected.
+- Always verify your rules and Active Root before running it.
 
 > This prevents accidental modification of critical project files.
 
@@ -195,6 +195,14 @@ To create a new project structure:
 
 The Asset Organizer automatically moves assets to the right folder when they are imported, based on rules you define in a mapping profile.
 
+**What gets organized:**
+
+- Files directly under `Assets/` (top-level only)
+- Everything inside your **Active Root**
+- Any additional folders you manually include
+
+> Everything else is ignored.
+
 **Using a built-in profile:**
 - Open the **Asset Organizer** tab
 - Select a profile from the dropdown and toggle the organizer **on** — it will apply automatically to new imports
@@ -218,14 +226,18 @@ The Asset Organizer automatically moves assets to the right folder when they are
 **Sharing profiles:**
 - Use **Export JSON** / **Import JSON** to share profiles across projects or with your team
 
+**Managing Scopes:**
+- You can manage additional folders from the **Scope section** inside the Asset Organizer tab.
+
 #### Scope
 
-The Asset Organizer only processes assets inside the Active Root.
+The organizer does not process the entire project.
 
-This ensures:
-- Third-party plugins are not modified
-- External assets remain untouched
-- Organizing is safe and predictable
+Instead, it works within a defined scope to keep your project safe.
+
+You can expand this scope by adding folders from the UI.
+
+> 💡 This prevents accidental modification of plugins, SDKs, and external assets.
 
 ---
 
