@@ -7,6 +7,24 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [1.2.1] — 2026-04-13
+
+### Fixed
+- Asset Organizer no longer processes the entire project, preventing unintended changes to plugins and external assets
+
+### Added
+- Scope control system:
+  - Introduced a unified **scope model** for Asset Organizer operations:
+	- **Assets/** (top-level only, non-recursive)
+	- **Active Root** (recursive)
+	- **User-defined additional scope folders** (recursive)
+  - Added UI to manage additional folders
+
+### Changed
+- Asset Organizer now operates within a defined scope instead of globally
+
+---
+
 ## [1.2.0] — 2026-04-13
 
 ### Added — Active Root System (Core Architecture)

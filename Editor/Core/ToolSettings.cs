@@ -1,4 +1,6 @@
-﻿using UnityEditor;
+﻿using System.Collections.Generic;
+using UnityEditor;
+using UnityEngine;
 using UnityEngine.Audio;
 
 namespace GlyphLabs.PristinePipeline
@@ -152,6 +154,50 @@ namespace GlyphLabs.PristinePipeline
                 : root + "/" + relativePath.Trim('/');
         }
 
+        // ── ADDITIONS TO ToolSettings.cs ────────────────────────────────────────────
+        //
+        // Add the following block inside the Asset Organizer section, after
+        // Organizer_ProfileSavePath.
+        //
+        // Also add the DeleteKey call shown at the bottom to ResetAll().
+        // ─────────────────────────────────────────────────────────────────────────────
+
+        // ── Asset Organizer — additional scope paths ─────────────────────────────
+        // Stored as a JSON array in a single EditorPrefs key so the list survives
+        // Unity restarts without needing a ScriptableObject. The getter returns an
+        // empty list (never null) when the key is absent or the JSON is malformed.
+
+        private const string Organizer_AdditionalScopePathsKey = "Organizer.AdditionalScopePaths";
+
+        public static List<string> Organizer_AdditionalScopePaths
+        {
+            get
+            {
+                string json = EditorPrefs.GetString(Key(Organizer_AdditionalScopePathsKey), "");
+                if (string.IsNullOrEmpty(json)) return new List<string>();
+                try
+                {
+                    return JsonUtility.FromJson<StringListWrapper>(json)?.items
+                           ?? new List<string>();
+                }
+                catch { return new List<string>(); }
+            }
+            set
+            {
+                var wrapper = new StringListWrapper { items = value ?? new List<string>() };
+                EditorPrefs.SetString(Key(Organizer_AdditionalScopePathsKey),
+                    JsonUtility.ToJson(wrapper));
+            }
+        }
+
+        // Helper — JsonUtility cannot serialise a bare List<string>,
+        // so we wrap it in a class. Lives here alongside its key.
+        [System.Serializable]
+        private class StringListWrapper
+        {
+            public List<string> items = new();
+        }
+
 
         /// <summary>
         /// Wipes all Pristine Pipeline EditorPrefs entries.
@@ -170,6 +216,8 @@ namespace GlyphLabs.PristinePipeline
             EditorPrefs.DeleteKey(Key(FBX_EnabledKey));
             EditorPrefs.DeleteKey(Key(FBX_ActiveProfileGuidKey));
             EditorPrefs.DeleteKey(Key(FBX_ProfileSavePathKey));
-        }
+            EditorPrefs.DeleteKey(Key(Organizer_AdditionalScopePathsKey));
+        }        
+
     }
 }

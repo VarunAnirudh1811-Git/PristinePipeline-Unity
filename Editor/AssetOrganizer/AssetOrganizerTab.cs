@@ -7,9 +7,9 @@ using UnityEngine;
 namespace GlyphLabs.PristinePipeline
 {
     /// <summary>
-    /// Draws the Asset Organizer tab inside PristinePipelineWindow.
-    ///
-    /// UX changes (v1.1):
+    /// Draws the Asset Organizer tab inside PristinePipelineWindow. 
+    /// </summary>
+    ///  UX changes (v1.1):
     ///   - Primary action button ("Organize Project Now") promoted to the top of
     ///     the tab so it is visible without scrolling.
     ///   - Rules preview is now wrapped in a fixed-height scroll view.
@@ -18,7 +18,12 @@ namespace GlyphLabs.PristinePipeline
     ///   - "Select Asset in Project" moved inside the profile selector row for
     ///     better spatial grouping.
     ///   - Enable toggle now shows a coloured status pill instead of a plain label.
-    /// </summary>
+    ///   v1.2.1 — Scope control:
+    ///   Added a "Scope" section in list mode that shows the three zones the
+    ///   organizer will process and lets the user manage additional opt-in paths.
+    ///   The additional paths list is global (shared across profiles) and persisted
+    ///   in ToolSettings.Organizer_AdditionalScopePaths.
+    
     public class AssetOrganizerTab
     {
         // ── Mode ─────────────────────────────────────────────────────────────────
@@ -32,14 +37,21 @@ namespace GlyphLabs.PristinePipeline
         private string[] _profileNames = new string[0];
         private int _selectedIndex = 0;
 
-        // Profile management panel is collapsed by default — studios set profiles
-        // once; the daily workflow is just hitting the action button.
         private bool _profileManagementExpanded = false;
+        private bool _scopeExpanded = false;
 
         // ── Rules preview scroll ─────────────────────────────────────────────────
 
         private Vector2 _rulesScrollPos;
         private const float RulesPreviewMaxHeight = 180f;
+
+        // ── Scope — additional paths list ────────────────────────────────────────
+
+        // Local copy of the additional paths kept in sync with ToolSettings.
+        // We work on a local list so the ReorderableList has a stable reference,
+        // then flush back to ToolSettings whenever a change is made.
+        private List<string> _additionalPaths;
+        private ReorderableList _additionalPathsList;
 
         // ── Create / Edit state ──────────────────────────────────────────────────
 
@@ -53,7 +65,13 @@ namespace GlyphLabs.PristinePipeline
 
         // ── Lifecycle ────────────────────────────────────────────────────────────
 
-        public void OnEnable() => RefreshProfiles();
+        public void OnEnable()
+        {
+            RefreshProfiles();
+            LoadAdditionalPaths();
+            BuildAdditionalPathsList();
+        }
+
         public void OnDisable() { }
 
         // ── Entry point ──────────────────────────────────────────────────────────
@@ -71,18 +89,22 @@ namespace GlyphLabs.PristinePipeline
 
         private void DrawListMode(EditorWindow parentWindow)
         {
-            // 1 — Status + primary action (always visible, no scroll needed)
+            // 1 — Status + primary action
             DrawEnableToggleAndPrimaryAction();
             PristinePipelineWindow.DrawDivider();
 
-            // 2 — Profile selector (always visible, compact)
+            // 2 — Profile selector
             DrawProfileSelectorCompact();
             PristinePipelineWindow.DrawDivider();
 
-            // 3 — Rules preview (scrollable)
+            // 3 — Rules preview
             DrawRulesPreview();
 
-            // 4 — Profile management (collapsible, non-critical)
+            // 4 — Scope (collapsible)
+            PristinePipelineWindow.DrawDivider();
+            DrawScopeSection();
+
+            // 5 — Profile management (collapsible)
             PristinePipelineWindow.DrawDivider();
             DrawProfileManagementCollapsible(parentWindow);
         }
@@ -93,7 +115,6 @@ namespace GlyphLabs.PristinePipeline
         {
             EditorGUILayout.Space(6);
 
-            // ── Status row ───────────────────────────────────────────────────────
             using (new EditorGUILayout.HorizontalScope())
             {
                 EditorGUILayout.LabelField("Asset Organizer", EditorStyles.boldLabel);
@@ -104,10 +125,10 @@ namespace GlyphLabs.PristinePipeline
                 if (updated != enabled)
                 {
                     ToolSettings.Organizer_Enabled = updated;
-                    Debug.Log($"{ToolInfo.LogPrefix} Asset Organizer {(updated ? "enabled" : "disabled")}.");
+                    Debug.Log(
+                        $"{ToolInfo.LogPrefix} Asset Organizer {(updated ? "enabled" : "disabled")}.");
                 }
 
-                // Coloured status pill
                 Color pillColor = ToolSettings.Organizer_Enabled
                     ? new Color(0.2f, 0.75f, 0.35f)
                     : new Color(0.55f, 0.55f, 0.55f);
@@ -123,7 +144,6 @@ namespace GlyphLabs.PristinePipeline
 
             EditorGUILayout.Space(6);
 
-            // ── Primary action — promoted to top ─────────────────────────────────
             bool canOrganize = ActiveProfile != null;
             GUI.enabled = canOrganize;
 
@@ -138,7 +158,7 @@ namespace GlyphLabs.PristinePipeline
             {
                 if (EditorUtility.DisplayDialog(
                     "Organize Project",
-                    $"This will move assets across your project using the " +
+                    $"This will move assets inside the defined scope using the " +
                     $"'{ActiveProfile.profileName}' profile rules.\n\nThis cannot be undone. Continue?",
                     "Organize", "Cancel"))
                 {
@@ -178,7 +198,8 @@ namespace GlyphLabs.PristinePipeline
             using (new EditorGUILayout.HorizontalScope())
             {
                 EditorGUILayout.LabelField(
-                    new GUIContent("Profile", "The active mapping profile used during organize passes."),
+                    new GUIContent("Profile",
+                        "The active mapping profile used during organize passes."),
                     GUILayout.Width(100));
 
                 int newIndex = EditorGUILayout.Popup(_selectedIndex, _profileNames);
@@ -188,7 +209,6 @@ namespace GlyphLabs.PristinePipeline
                     ProfileRegistry.SetActiveOrganizerProfile(ActiveProfile);
                 }
 
-                // Ping button — inline, space-efficient
                 GUI.enabled = ActiveProfile != null;
                 if (GUILayout.Button(
                     new GUIContent("◉", "Select asset in Project window"),
@@ -223,7 +243,6 @@ namespace GlyphLabs.PristinePipeline
             {
                 EditorGUILayout.Space(2);
 
-                // Column headers
                 using (new EditorGUILayout.HorizontalScope())
                 {
                     EditorGUILayout.LabelField("Extension", EditorStyles.miniBoldLabel, GUILayout.Width(70));
@@ -233,7 +252,6 @@ namespace GlyphLabs.PristinePipeline
 
                 PristinePipelineWindow.DrawDivider();
 
-                // Scrollable rule rows
                 _rulesScrollPos = EditorGUILayout.BeginScrollView(
                     _rulesScrollPos,
                     GUILayout.MaxHeight(RulesPreviewMaxHeight));
@@ -253,6 +271,65 @@ namespace GlyphLabs.PristinePipeline
                 EditorGUILayout.EndScrollView();
                 EditorGUILayout.Space(2);
             }
+        }
+
+        // ── Scope section ────────────────────────────────────────────────────────
+
+        private void DrawScopeSection()
+        {
+            _scopeExpanded = EditorGUILayout.Foldout(
+                _scopeExpanded, "Scope", true, EditorStyles.foldoutHeader);
+
+            if (!_scopeExpanded) return;
+
+            EditorGUILayout.Space(4);
+
+            // ── Always-on zones (read-only display) ───────────────────────────────
+            EditorGUILayout.LabelField("Always included", EditorStyles.miniBoldLabel);
+            EditorGUILayout.Space(2);
+
+            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+            {
+                // Zone A
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    EditorGUILayout.LabelField(
+                        new GUIContent("●", "Files dropped directly into the Assets/ folder " +
+                            "via the Unity menu or Project window root. Non-recursive."),
+                        GUILayout.Width(14));
+                    EditorGUILayout.LabelField("Assets/  (top level only)",
+                        EditorStyles.miniLabel);
+                }
+
+                // Zone B
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    EditorGUILayout.LabelField(
+                        new GUIContent("●", "Your project's working directory. " +
+                            "Set this in the Active Root bar at the top of the window."),
+                        GUILayout.Width(14));
+
+                    string root = ToolSettings.ActiveRootPath;
+                    EditorGUILayout.LabelField(
+                        $"{root}/  (Active Root, recursive)",
+                        EditorStyles.miniLabel);
+                }
+            }
+
+            EditorGUILayout.Space(6);
+
+            // ── Additional opt-in paths ───────────────────────────────────────────
+            EditorGUILayout.LabelField(
+                new GUIContent("Additional folders",
+                    "Opt-in folders processed recursively. " +
+                    "Use this for content you own that lives outside the Active Root."),
+                EditorStyles.miniBoldLabel);
+            EditorGUILayout.Space(2);
+
+            if (_additionalPathsList != null)
+                _additionalPathsList.DoLayoutList();
+
+            EditorGUILayout.Space(2);
         }
 
         // ── Collapsible profile management ───────────────────────────────────────
@@ -276,7 +353,6 @@ namespace GlyphLabs.PristinePipeline
         {
             float halfWidth = (EditorGUIUtility.currentViewWidth - 9f) / 2f;
 
-            // Row 1 — New / Edit
             using (new EditorGUILayout.HorizontalScope())
             {
                 if (GUILayout.Button("New Profile", GUILayout.Width(halfWidth)))
@@ -298,7 +374,6 @@ namespace GlyphLabs.PristinePipeline
 
             EditorGUILayout.Space(4);
 
-            // Row 2 — Duplicate / Delete
             using (new EditorGUILayout.HorizontalScope())
             {
                 GUI.enabled = selected != null;
@@ -332,7 +407,6 @@ namespace GlyphLabs.PristinePipeline
 
             EditorGUILayout.Space(2);
 
-            // Row 3 — Import / Export JSON
             using (new EditorGUILayout.HorizontalScope())
             {
                 if (GUILayout.Button("Import JSON", GUILayout.Width(halfWidth)))
@@ -506,7 +580,8 @@ namespace GlyphLabs.PristinePipeline
                     rule.extension = rawExt.TrimStart('.').ToLowerInvariant();
 
                     rule.namePattern = EditorGUI.TextField(
-                        new Rect(rect.x + ext + 4, rect.y, pat, rect.height), rule.namePattern);
+                        new Rect(rect.x + ext + 4, rect.y, pat, rect.height),
+                        rule.namePattern);
 
                     rule.destinationFolder = EditorGUI.TextField(
                         new Rect(rect.x + ext + pat + 8, rect.y, dst, rect.height),
@@ -607,6 +682,134 @@ namespace GlyphLabs.PristinePipeline
             p.description = _editDescription.Trim();
             p.SetRules(_editRules);
             return p;
+        }
+
+        // ── Additional scope paths helpers ────────────────────────────────────────
+
+        private void LoadAdditionalPaths()
+        {
+            _additionalPaths = ToolSettings.Organizer_AdditionalScopePaths;
+        }
+
+        private void FlushAdditionalPaths()
+        {
+            ToolSettings.Organizer_AdditionalScopePaths = _additionalPaths;
+        }
+
+        private void BuildAdditionalPathsList()
+        {
+            _additionalPathsList = new ReorderableList(
+                _additionalPaths, typeof(string),
+                draggable: true,
+                displayHeader: false,
+                displayAddButton: true,
+                displayRemoveButton: true)
+            {
+                drawElementCallback = (rect, index, isActive, isFocused) =>
+                {
+                    if (index < 0 || index >= _additionalPaths.Count) return;
+
+                    rect.y += 2;
+                    float lineH = EditorGUIUtility.singleLineHeight;
+
+                    // Reserve space on the right for the folder-picker button
+                    float btnW = 26f;
+                    float gap = 4f;
+                    float fieldW = rect.width - btnW - gap;
+
+                    EditorGUI.BeginChangeCheck();
+
+                    _additionalPaths[index] = EditorGUI.TextField(
+                        new Rect(rect.x, rect.y, fieldW, lineH),
+                        _additionalPaths[index]);
+
+                    // Folder-picker button — opens the OS folder panel and converts
+                    // the result to a Unity asset path automatically.
+                    if (GUI.Button(new Rect(rect.x + fieldW + gap, rect.y, btnW, lineH),
+                        new GUIContent("…", "Pick a folder inside this project")))
+                    {
+                        string picked = EditorUtility.OpenFolderPanel(
+                            "Select Scope Folder",
+                            Application.dataPath,
+                            "");
+
+                        if (!string.IsNullOrEmpty(picked))
+                        {
+                            string projectRoot = Application.dataPath[..^"Assets".Length];
+                            picked = picked.Replace("\\", "/");
+
+                            if (picked.StartsWith(projectRoot))
+                            {
+                                string relative = picked[projectRoot.Length..].TrimStart('/');
+                                if (relative.StartsWith("Assets"))
+                                {
+                                    _additionalPaths[index] = relative;
+                                    GUI.changed = true;
+                                }
+                                else
+                                {
+                                    EditorUtility.DisplayDialog(
+                                        "Invalid Folder",
+                                        "The selected folder must be inside Assets/.",
+                                        "OK");
+                                }
+                            }
+                            else
+                            {
+                                EditorUtility.DisplayDialog(
+                                    "Invalid Folder",
+                                    "The selected folder must be inside this Unity project.",
+                                    "OK");
+                            }
+                        }
+                    }
+
+                    // Warn when path looks invalid
+                    bool pathInvalid = !string.IsNullOrWhiteSpace(_additionalPaths[index])
+                        && !_additionalPaths[index].StartsWith("Assets/",
+                            System.StringComparison.OrdinalIgnoreCase);
+
+                    if (pathInvalid)
+                    {
+                        float warnY = rect.y + lineH + 2f;
+                        EditorGUI.HelpBox(
+                            new Rect(rect.x, warnY, rect.width, lineH + 4),
+                            "Path must start with Assets/",
+                            MessageType.Warning);
+                    }
+
+                    if (EditorGUI.EndChangeCheck())
+                        FlushAdditionalPaths();
+                },
+
+                elementHeightCallback = index =>
+                {
+                    float height = EditorGUIUtility.singleLineHeight + 6f;
+                    if (index >= 0 && index < _additionalPaths.Count)
+                    {
+                        bool pathInvalid = !string.IsNullOrWhiteSpace(_additionalPaths[index])
+                            && !_additionalPaths[index].StartsWith("Assets/",
+                                System.StringComparison.OrdinalIgnoreCase);
+                        if (pathInvalid)
+                            height += EditorGUIUtility.singleLineHeight + 6f;
+                    }
+                    return height;
+                },
+
+                onAddCallback = _ =>
+                {
+                    _additionalPaths.Add("");
+                    FlushAdditionalPaths();
+                },
+
+                onRemoveCallback = list =>
+                {
+                    _additionalPaths.RemoveAt(list.index);
+                    FlushAdditionalPaths();
+                },
+
+                onReorderCallback = _ => FlushAdditionalPaths()
+            };
         }
 
         // ── Helpers ──────────────────────────────────────────────────────────────

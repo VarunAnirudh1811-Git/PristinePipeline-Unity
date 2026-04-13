@@ -11,6 +11,12 @@ namespace GlyphLabs.PristinePipeline
     /// Only fires on first-time imports — not on reimports of existing assets.
     /// Does nothing if the organizer is disabled in ToolSettings.
     /// </summary>
+    /// v1.2.1 - Scope control:
+    /// Only processes assets that pass AssetOrganizerUtility.IsInScope.
+    /// See that method's documentation for the full scope definition.
+    /// In short: Assets/ top-level files, anything under the Active Root,
+    /// and anything under a user-defined additional scope path are processed.
+    /// Everything else is silently ignored.
     public class AssetOrganizerProcessor : AssetPostprocessor
     {
         /// <summary>
@@ -62,20 +68,20 @@ namespace GlyphLabs.PristinePipeline
                 if (assetPath.EndsWith(".meta")) continue;
                 if (!assetPath.StartsWith("Assets/")) continue;
 
-                // Skip reimports — only process assets being imported for the first time.
-                // We detect first-time imports by checking if the asset existed in the
-                // database before the postprocessor fired. Since we're inside the
-                // postprocessor, the asset is already registered — so instead we check
-                // whether the asset's file timestamp matches what would be a fresh import
-                // by relying on the movedFromAssetPaths exclusion and the reimport flag.
-                // The simplest reliable heuristic: if the asset path appears in
-                // movedAssets it was moved, not newly imported — skip it.
-                bool wasMoved = System.Array.IndexOf(movedAssets, assetPath) >= 0;
-                if (wasMoved) continue;
+                // Skip assets that were moved rather than freshly imported -
+                // they already live somewhere intentional.
+                if (System.Array.IndexOf(movedAssets, assetPath) >= 0) continue;
+
+                // Skip assets outside the defined scope. This is the primary safety
+                // boundary that prevents plugins and third-party assets from being
+                // reorganised without the user's explicit consent.
+                if (!AssetOrganizerUtility.IsInScope(assetPath)) continue;
 
                 MappingRule rule = AssetOrganizerUtility.FindMatchingRule(profile, assetPath);
                 if (rule == null) continue;
 
+                // MoveAsset always resolves the destination relative to Active Root,
+                // so a file adopted from Assets/ top-level is pulled into the root tree.
                 AssetOrganizerUtility.MoveAsset(assetPath, rule);
             }
         }

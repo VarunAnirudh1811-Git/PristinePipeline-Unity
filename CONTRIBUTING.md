@@ -72,24 +72,30 @@ ToolSettings.Resolve(relativePath);
 
 ---
 
-## Scope Enforcement
+## Scope Enforcement (v1.2.1+)
 
-```csharp
-string root = ToolSettings.ActiveRootPath;
+Asset Organizer must only process assets within defined scope.
 
-if (!assetPath.StartsWith(root + "/") && assetPath != root)
-    return;
-```
+Scope includes:
 
+1. Assets/ (top-level only, non-recursive)
+2. Active Root (recursive)
+3. Additional scope paths (recursive)
+
+---
+
+All processing must use:
+
+AssetOrganizerUtility.IsInScope(assetPath)
 ---
 
 ## ⚠️ Safety Requirements
 
 ### Asset Organizer
 
-* Must operate only within Active Root
-* Must not affect assets outside root
-* Must not modify third-party or external assets
+- Must respect scope rules
+- Must never operate on entire project
+- Must ignore assets outside defined scope
 
 ---
 
@@ -142,6 +148,7 @@ All paths must be relative to Active Root.
 * Always filter using Active Root
 * Never process full project blindly
 * Prefer skipping when uncertain
+* Never process assets without calling IsInScope first
 
 ---
 
@@ -190,17 +197,30 @@ Filter using Active Root
 
 ---
 
+### ❌ Skipping scope validation
+
+Applying rules directly to assets without checking scope
+
+### ✅ Correct
+
+Always validate using:
+
+AssetOrganizerUtility.IsInScope(assetPath)
+
+---
+
 ## Testing
 
-Test with different Active Roots:
+### Test with:
 
-* Assets
-* Assets/GameA
+  - Only Active Root
+  - Active Root + additional paths
 
-Ensure:
+### Verify:
 
-* No assets outside root are affected
-* Paths resolve correctly
+- Plugins are untouched
+- External folders are ignored
+- Only allowed assets are processed
 
 ---
 
