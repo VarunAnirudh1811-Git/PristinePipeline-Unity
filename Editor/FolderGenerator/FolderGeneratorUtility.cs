@@ -14,6 +14,12 @@ namespace GlyphLabs.PristinePipeline
     /// All operations that touch the AssetDatabase or filesystem live here,
     /// keeping FolderGeneratorTab and TemplateCreatorTab focused on UI only.
     /// </summary>
+    /// v1.2 — Active Root refactor:
+    ///   - CreateFolders no longer accepts a rootPath parameter. It reads
+    ///     ToolSettings.ActiveRootPath directly, making the Active Root the single
+    ///     source of truth for all folder creation.
+    ///   - ResolveRootPath removed — callers that need the current root for display
+    ///     or preview should read ToolSettings.ActiveRootPath directly.
     public static class FolderGeneratorUtility
     {
         private static string ProjectRoot =>
@@ -236,12 +242,14 @@ namespace GlyphLabs.PristinePipeline
         // ── Folder creation ──────────────────────────────────────────────────────
 
         /// <summary>
-        /// Creates the folder structure defined by the template under rootPath.
+        /// Creates the folder structure defined by the template under ActiveRoot.
         /// Optionally writes a .keep file into each empty folder.
         /// </summary>
-        public static void CreateFolders(FolderTemplate template, string rootPath, bool addKeepFiles)
+        public static void CreateFolders(FolderTemplate template, bool addKeepFiles)
         {
             if (template == null) return;
+
+            string root = ToolSettings.ActiveRootPath;
 
             AssetDatabase.StartAssetEditing();
 
@@ -252,7 +260,7 @@ namespace GlyphLabs.PristinePipeline
                     string normalized = NormalizePath(folder);
                     if (string.IsNullOrEmpty(normalized)) continue;
 
-                    string assetRelativePath = Path.Combine(rootPath, normalized).Replace("\\", "/");
+                    string assetRelativePath = root + "/" + normalized;
                     string fullPath = ToAbsolutePath(assetRelativePath);
 
                     try
@@ -260,7 +268,7 @@ namespace GlyphLabs.PristinePipeline
                         if (!Directory.Exists(fullPath))
                         {
                             Directory.CreateDirectory(fullPath);
-                            Debug.Log($"{ToolInfo.LogPrefix} Created folder: {fullPath}");
+                            Debug.Log($"{ToolInfo.LogPrefix} Created folder: {assetRelativePath}");
                         }
 
                         if (addKeepFiles && IsDirectoryEmpty(fullPath))
@@ -282,19 +290,6 @@ namespace GlyphLabs.PristinePipeline
         }
 
         // ── Path resolution ──────────────────────────────────────────────────────
-
-        /// <summary>
-        /// Resolves the root path for folder generation.
-        /// If useProjectRoot is true and projectName is provided, nests under Assets/ProjectName.
-        /// Otherwise returns "Assets".
-        /// </summary>
-        public static string ResolveRootPath(bool useProjectRoot, string projectName)
-        {
-            if (!useProjectRoot || string.IsNullOrWhiteSpace(projectName))
-                return "Assets";
-
-            return Path.Combine("Assets", projectName.Trim().Replace(" ", "")).Replace("\\", "/");
-        }
 
         /// <summary>
         /// Strips characters that are invalid in folder names (preserving / and \).
@@ -335,6 +330,7 @@ namespace GlyphLabs.PristinePipeline
         private static void EnsureDirectoryExists(string unityAssetPath)
         {
             string absolutePath = ToAbsolutePath(unityAssetPath);
+
             if (!Directory.Exists(absolutePath))
                 Directory.CreateDirectory(absolutePath);
         }

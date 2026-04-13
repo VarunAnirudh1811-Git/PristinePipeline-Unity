@@ -9,22 +9,24 @@ namespace GlyphLabs.PristinePipeline
     ///
     /// Why this exists:
     ///   FBXImportPreset stores ModelImporterMeshCompression, ModelImporterNormals,
-    ///   and ModelImporterTangents as plain ints (meshCompressionInt / normalsInt /
-    ///   tangentsInt) so the Runtime assembly has no UnityEditor dependency.
-    ///   Those fields are [HideInInspector] to prevent Unity drawing them as raw
-    ///   number fields. This custom editor replaces them with EnumPopup dropdowns
-    ///   so the asset Inspector remains fully usable.
+    ///   and ModelImporterTangents as plain ints so the Runtime assembly has no
+    ///   UnityEditor dependency. Those fields are [HideInInspector] to prevent Unity
+    ///   drawing them as raw number fields. This custom editor replaces them with
+    ///   EnumPopup dropdowns so the asset Inspector remains fully usable.
     ///
-    ///   All other fields on FBXImportProfile and FBXImportPreset are drawn via
-    ///   SerializedProperty so undo, prefab override indicators, and multi-edit
-    ///   work correctly for those fields.
+    ///   All other fields are drawn via SerializedProperty so undo, prefab override
+    ///   indicators, and multi-edit work correctly.
+    ///
+    /// v1.2 — Active Root refactor:
+    ///   Folder path validation now rejects paths that START with "Assets/" — paths
+    ///   must be relative to the Active Root (e.g. "Art/Materials", not
+    ///   "Assets/Art/Materials").
     /// </summary>
     [CustomEditor(typeof(FBXImportProfile))]
     public class FBXImportProfileEditor : Editor
     {
         // ── SerializedProperty cache ─────────────────────────────────────────────
 
-        // Profile-level
         private SerializedProperty _profileName;
         private SerializedProperty _description;
         private SerializedProperty _enforceNaming;
@@ -34,7 +36,7 @@ namespace GlyphLabs.PristinePipeline
         private SerializedProperty _defaultPreset;
         private SerializedProperty _rules;
 
-        // Default preset fields (children of _defaultPreset)
+        // Default preset children
         private SerializedProperty _dp_presetName;
         private SerializedProperty _dp_scaleFactor;
         private SerializedProperty _dp_readWrite;
@@ -104,8 +106,7 @@ namespace GlyphLabs.PristinePipeline
             EditorGUILayout.PropertyField(_enforceNaming,
                 new GUIContent("Enforce",
                     "When on, FBX files that don't match a valid prefix are blocked at import."));
-            EditorGUILayout.PropertyField(_validPrefixes,
-                new GUIContent("Valid Prefixes"));
+            EditorGUILayout.PropertyField(_validPrefixes, new GUIContent("Valid Prefixes"));
             EditorGUILayout.Space(6);
 
             // ── Texture channels ──────────────────────────────────────────────────
@@ -141,11 +142,8 @@ namespace GlyphLabs.PristinePipeline
             // ── Rules ─────────────────────────────────────────────────────────────
             EditorGUILayout.LabelField("Rules", EditorStyles.boldLabel);
             EditorGUILayout.HelpBox(
-                "Rules are evaluated in order — last match wins.",
-                MessageType.None);
+                "Rules are evaluated in order — last match wins.", MessageType.None);
 
-            // Draw the rules list. Each rule's preset has its own int-backed enum
-            // fields that also need EnumPopup treatment.
             DrawRulesList();
 
             serializedObject.ApplyModifiedProperties();
@@ -153,10 +151,6 @@ namespace GlyphLabs.PristinePipeline
 
         // ── Shared preset property drawer ────────────────────────────────────────
 
-        /// <summary>
-        /// Draws all preset properties using SerializedProperty for undo support,
-        /// except the three int-backed enum fields which are drawn as EnumPopup.
-        /// </summary>
         private static void DrawPresetProperties(
             SerializedProperty presetName,
             SerializedProperty scaleFactor,
@@ -176,23 +170,19 @@ namespace GlyphLabs.PristinePipeline
         {
             using (new EditorGUI.IndentLevelScope(1))
             {
-                EditorGUILayout.PropertyField(presetName,
-                    new GUIContent("Preset Name"));
+                EditorGUILayout.PropertyField(presetName, new GUIContent("Preset Name"));
 
                 EditorGUILayout.PropertyField(scaleFactor,
                     new GUIContent("Scale Factor",
                         "Uniform scale on import. Maya = 0.01, Blender = 1.0."));
 
                 if (scaleFactor.floatValue <= 0f)
-                    EditorGUILayout.HelpBox(
-                        "Scale factor must be greater than zero.", MessageType.Error);
-
-                // ── Enum dropdowns ───────────────────────────────────────────────
+                    EditorGUILayout.HelpBox("Scale factor must be greater than zero.", MessageType.Error);
 
                 meshCompressionInt.intValue = (int)(ModelImporterMeshCompression)
                     EditorGUILayout.EnumPopup(
                         new GUIContent("Mesh Compression",
-                            "Reduces mesh size on disk and in memory. Off preserves precision."),
+                            "Reduces mesh size on disk and in memory."),
                         (ModelImporterMeshCompression)meshCompressionInt.intValue);
 
                 EditorGUILayout.PropertyField(readWrite,
@@ -201,7 +191,7 @@ namespace GlyphLabs.PristinePipeline
 
                 EditorGUILayout.PropertyField(optimizeMesh,
                     new GUIContent("Optimize Mesh",
-                        "Reorders vertices for GPU cache performance. Recommended on."));
+                        "Reorders vertices for GPU cache performance."));
 
                 EditorGUILayout.PropertyField(lightmapUVs,
                     new GUIContent("Generate Lightmap UVs",
@@ -221,7 +211,7 @@ namespace GlyphLabs.PristinePipeline
 
                 EditorGUILayout.PropertyField(swapUVs,
                     new GUIContent("Swap UVs",
-                        "Swaps UV channel 0 and 1. Fixes inverted UV order from some exporters."));
+                        "Swaps UV channel 0 and 1."));
 
                 // ── Material & Texture ───────────────────────────────────────────
                 EditorGUILayout.Space(4);
@@ -233,21 +223,23 @@ namespace GlyphLabs.PristinePipeline
 
                 EditorGUILayout.PropertyField(materialsFolder,
                     new GUIContent("Materials Folder",
-                        "Unity asset path where created materials are saved."));
+                        "Path relative to Active Root — e.g. Art/Materials."));
 
                 if (!string.IsNullOrWhiteSpace(materialsFolder.stringValue)
-                    && !materialsFolder.stringValue.StartsWith("Assets/"))
+                    && materialsFolder.stringValue.StartsWith("Assets/", System.StringComparison.OrdinalIgnoreCase))
                     EditorGUILayout.HelpBox(
-                        "Materials folder must start with Assets/.", MessageType.Warning);
+                        "Must be a relative path — do not start with \"Assets/\".",
+                        MessageType.Warning);
 
                 EditorGUILayout.PropertyField(texturesFolder,
                     new GUIContent("Textures Folder",
-                        "Unity asset path searched for matching textures. Not recursive."));
+                        "Path relative to Active Root — e.g. Art/Textures."));
 
                 if (!string.IsNullOrWhiteSpace(texturesFolder.stringValue)
-                    && !texturesFolder.stringValue.StartsWith("Assets/"))
+                    && texturesFolder.stringValue.StartsWith("Assets/", System.StringComparison.OrdinalIgnoreCase))
                     EditorGUILayout.HelpBox(
-                        "Textures folder must start with Assets/.", MessageType.Warning);
+                        "Must be a relative path — do not start with \"Assets/\".",
+                        MessageType.Warning);
 
                 // ── Prefab ───────────────────────────────────────────────────────
                 EditorGUILayout.Space(4);
@@ -255,12 +247,13 @@ namespace GlyphLabs.PristinePipeline
 
                 EditorGUILayout.PropertyField(prefabsFolder,
                     new GUIContent("Prefabs Folder",
-                        "Unity asset path where generated prefabs are saved."));
+                        "Path relative to Active Root — e.g. Level/Prefabs."));
 
                 if (!string.IsNullOrWhiteSpace(prefabsFolder.stringValue)
-                    && !prefabsFolder.stringValue.StartsWith("Assets/"))
+                    && prefabsFolder.stringValue.StartsWith("Assets/", System.StringComparison.OrdinalIgnoreCase))
                     EditorGUILayout.HelpBox(
-                        "Prefabs folder must start with Assets/.", MessageType.Warning);
+                        "Must be a relative path — do not start with \"Assets/\".",
+                        MessageType.Warning);
 
                 EditorGUILayout.PropertyField(generatePrefab,
                     new GUIContent("Auto-Generate Prefab",
@@ -281,12 +274,10 @@ namespace GlyphLabs.PristinePipeline
             for (int i = 0; i < ruleCount; i++)
             {
                 SerializedProperty rule = _rules.GetArrayElementAtIndex(i);
-
                 SerializedProperty namePattern = rule.FindPropertyRelative("namePattern");
                 SerializedProperty note = rule.FindPropertyRelative("note");
                 SerializedProperty preset = rule.FindPropertyRelative("preset");
 
-                // Preset child properties
                 SerializedProperty rp_presetName = preset.FindPropertyRelative("presetName");
                 SerializedProperty rp_scaleFactor = preset.FindPropertyRelative("scaleFactor");
                 SerializedProperty rp_meshCompressionInt = preset.FindPropertyRelative("meshCompressionInt");
@@ -307,19 +298,15 @@ namespace GlyphLabs.PristinePipeline
                     ? $"Rule {i + 1}"
                     : $"Rule {i + 1}  —  {namePattern.stringValue}";
 
-                rule.isExpanded = EditorGUILayout.Foldout(
-                    rule.isExpanded, foldoutLabel, true);
+                rule.isExpanded = EditorGUILayout.Foldout(rule.isExpanded, foldoutLabel, true);
 
                 if (rule.isExpanded)
                 {
                     using (new EditorGUI.IndentLevelScope(1))
                     {
                         EditorGUILayout.PropertyField(namePattern,
-                            new GUIContent("Name Pattern",
-                                "Wildcard — e.g. SM_*, SK_*. Case-insensitive."));
-                        EditorGUILayout.PropertyField(note,
-                            new GUIContent("Note"));
-
+                            new GUIContent("Name Pattern", "Wildcard — e.g. SM_*, SK_*. Case-insensitive."));
+                        EditorGUILayout.PropertyField(note, new GUIContent("Note"));
                         EditorGUILayout.Space(2);
                         EditorGUILayout.LabelField("Preset", EditorStyles.miniBoldLabel);
 
@@ -332,7 +319,6 @@ namespace GlyphLabs.PristinePipeline
                     }
                 }
 
-                // Remove button
                 EditorGUILayout.BeginHorizontal();
                 GUILayout.FlexibleSpace();
                 Color prev = GUI.backgroundColor;
@@ -341,7 +327,7 @@ namespace GlyphLabs.PristinePipeline
                 {
                     _rules.DeleteArrayElementAtIndex(i);
                     serializedObject.ApplyModifiedProperties();
-                    return;   // exit early — array is now shorter
+                    return;
                 }
                 GUI.backgroundColor = prev;
                 EditorGUILayout.EndHorizontal();
@@ -349,7 +335,6 @@ namespace GlyphLabs.PristinePipeline
                 EditorGUILayout.Space(4);
             }
 
-            // Add button
             if (GUILayout.Button("+ Add Rule"))
             {
                 _rules.InsertArrayElementAtIndex(ruleCount);

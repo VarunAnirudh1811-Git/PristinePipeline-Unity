@@ -29,9 +29,9 @@ MonoBehaviour:
     tangentsInt: 3
     swapUVs: 0
     materialPrefix: M_
-    materialsFolder: Assets/Art/Materials
-    texturesFolder: Assets/Art/Textures
-    prefabsFolder: Assets/Level/Prefabs
+    materialsFolder: Art/Materials
+    texturesFolder: Art/Textures
+    prefabsFolder: Level/Prefabs
     generatePrefab: 1
     lightmapStatic: 0
   enableEmission: 0
@@ -73,3 +73,4 @@ MonoBehaviour:
       generatePrefab: 1
       lightmapStatic: 0
     note: Characters and animated assets
+  isBuiltIn: 0

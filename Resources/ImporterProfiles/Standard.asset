@@ -31,9 +31,9 @@ MonoBehaviour:
     tangentsInt: 3
     swapUVs: 0
     materialPrefix: M_
-    materialsFolder: Assets/Art/Materials
-    texturesFolder: Assets/Art/Textures
-    prefabsFolder: Assets/Level/Prefabs/Props
+    materialsFolder: Art/Materials
+    texturesFolder: Art/Textures
+    prefabsFolder: Level/Prefabs/Props
     generatePrefab: 1
     lightmapStatic: 0
   enableEmission: 0
@@ -111,3 +111,4 @@ MonoBehaviour:
       generatePrefab: 0
       lightmapStatic: 0
     note: Collision-only meshes
+  isBuiltIn: 0
