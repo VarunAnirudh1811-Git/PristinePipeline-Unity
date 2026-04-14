@@ -4,6 +4,14 @@ All notable changes to Pristine Pipeline are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+---
+## [1.2.2] — 2026-04-14
+
+### Fixed
+- Resources/ImporterProfiles/Standard.asset and Resources/ImporterProfiles/Minimal.asset stores materialsFolder: Assets/Art/Materials, texturesFolder: Assets/Art/Textures, etc. Since v1.2, the code resolves these by prepending ActiveRootPath, producing Assets/GameA/Assets/Art/Materials — an invalid double-prefix path.
+
+### Removed
+- The Assets/ prefix from every path in Standard.asset (and Minimal.asset which has the same issue in some rules).
 
 ---
 
