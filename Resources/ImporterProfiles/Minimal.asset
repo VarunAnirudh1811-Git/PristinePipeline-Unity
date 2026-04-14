@@ -49,9 +49,9 @@ MonoBehaviour:
       tangentsInt: 3
       swapUVs: 0
       materialPrefix: M_
-      materialsFolder: Assets/Art/Materials
-      texturesFolder: Assets/Art/Textures
-      prefabsFolder: Assets/Level/Prefabs
+      materialsFolder: Art/Materials
+      texturesFolder: Art/Textures
+      prefabsFolder: Level/Prefabs
       generatePrefab: 1
       lightmapStatic: 1
     note: Static props and environment meshes
@@ -67,9 +67,9 @@ MonoBehaviour:
       tangentsInt: 3
       swapUVs: 0
       materialPrefix: M_
-      materialsFolder: Assets/Art/Materials
-      texturesFolder: Assets/Art/Textures
-      prefabsFolder: Assets/Level/Prefabs
+      materialsFolder: Art/Materials
+      texturesFolder: Art/Textures
+      prefabsFolder: Level/Prefabs
       generatePrefab: 1
       lightmapStatic: 0
     note: Characters and animated assets
