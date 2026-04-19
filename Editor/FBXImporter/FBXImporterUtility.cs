@@ -646,12 +646,11 @@ namespace GlyphLabs.PristinePipeline
             foreach (var mat in materials)
                 FindAndAssignTextures(mat, mat.name, preset, profile);
 
-            AssetDatabase.SaveAssets();
-
             if (preset.generatePrefab)
                 GeneratePrefab(fbxAssetPath, preset);
 
-            AssetDatabase.Refresh();
+
+            AssetDatabase.SaveAssets();
         }
 
         /// <summary>
@@ -664,20 +663,18 @@ namespace GlyphLabs.PristinePipeline
             if (profile == null) return 0;
 
             string[] allAssets = AssetDatabase.GetAllAssetPaths();
+            var fbxPaths = allAssets
+                .Where(p => IsInActiveRoot(p))
+                .Where(p => p.EndsWith(".fbx", StringComparison.OrdinalIgnoreCase))
+                .ToList();
             int count = 0;
 
             AssetDatabase.StartAssetEditing();
 
             try
             {
-                foreach (string path in allAssets)
+                foreach (var path in fbxPaths)
                 {
-                    string root = ToolSettings.ActiveRootPath;
-
-                    if (!path.StartsWith(root + "/") && path != root)
-                        continue;
-                    if (!path.EndsWith(".fbx", StringComparison.OrdinalIgnoreCase)) continue;
-
                     if (ReprocessAsset(path, profile))
                         count++;
                 }
@@ -688,11 +685,8 @@ namespace GlyphLabs.PristinePipeline
                 AssetDatabase.Refresh();
             }
 
-            foreach (string path in allAssets)
+            foreach (var path in fbxPaths)
             {
-                if (!path.StartsWith("Assets/")) continue;
-                if (!path.EndsWith(".fbx", StringComparison.OrdinalIgnoreCase)) continue;
-
                 FBXImportPreset preset = FindMatchingPreset(profile, path);
                 if (preset != null)
                     RunPostImportSteps(path, preset, profile);
@@ -749,9 +743,15 @@ namespace GlyphLabs.PristinePipeline
         ///   "Art/Materials"  → "Assets/GameA/Art/Materials"
         ///   "Level/Prefabs"  → "Assets/GameA/Level/Prefabs"
         /// </summary>
-        
+
 
         // ── Private helpers ──────────────────────────────────────────────────────
+        private static bool IsInActiveRoot(string path)
+        {
+            string root = ToolSettings.ActiveRootPath;
+
+            return path == root || path.StartsWith(root + "/");
+        }
 
         private static Texture2D FindTexture(string folder, string baseName, string[] suffixes)
         {

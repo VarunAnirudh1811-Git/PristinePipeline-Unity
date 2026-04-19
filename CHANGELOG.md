@@ -4,6 +4,18 @@ All notable changes to Pristine Pipeline are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+---
+## [1.2.3] — 2026-04-19
+
+### Fixed
+- FBX Importer no longer risks reimport loops caused by AssetDatabase.Refresh during post-import processing
+
+### Added
+- Safe post-import execution using deferred processing (ensures FBX assets are fully imported before applying materials, textures, and prefab generation)
+
+### Changed
+- ReprocessAll now respects Active Root consistently, preventing processing of FBX files outside the defined project scope
 ---
 ## [1.2.2] — 2026-04-14
 

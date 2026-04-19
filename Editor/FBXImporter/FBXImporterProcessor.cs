@@ -103,7 +103,11 @@ namespace GlyphLabs.PristinePipeline
             // conditional prefab generation. It calls AssetDatabase.Refresh internally.
             // The importedModel parameter here is the in-memory object — we pass the
             // asset path so the utility can load the on-disk asset for prefab generation.
-            FBXImporterUtility.RunPostImportSteps(assetPath, preset, profile);
+
+            EditorApplication.delayCall += () =>
+            {
+                FBXImporterUtility.RunPostImportSteps(assetPath, preset, profile);
+            };
         }
     }
 }
