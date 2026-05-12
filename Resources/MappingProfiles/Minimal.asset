@@ -23,6 +23,10 @@ MonoBehaviour:
     namePattern: SK_*
     destinationFolder: Art/Models
     note: Skeletal meshes
+  - extension: jpg
+    namePattern: T_*
+    destinationFolder: Art/Textures
+    note: 
   - extension: png
     namePattern: '*_B'
     destinationFolder: Art/Textures
@@ -67,4 +71,4 @@ MonoBehaviour:
     namePattern: 
     destinationFolder: Level/Scenes
     note: Unity scenes
-  isBuiltIn: 0
+  isBuiltIn: 1

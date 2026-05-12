@@ -46,6 +46,14 @@ namespace GlyphLabs.PristinePipeline
         private SerializedProperty _dp_materialPrefix;
         private SerializedProperty _dp_materialsFolder;
         private SerializedProperty _dp_texturesFolder;
+        //Default Texture Maps Assignment
+        private SerializedProperty _dp_baseColorPatterns;
+        private SerializedProperty _dp_normalPatterns;
+        private SerializedProperty _dp_metallicPatterns;
+        private SerializedProperty _dp_ormPatterns;
+        private SerializedProperty _dp_emissivePatterns;
+        private SerializedProperty _dp_aoPatterns;
+
         private SerializedProperty _dp_prefabsFolder;
         private SerializedProperty _dp_generatePrefab;
         private SerializedProperty _dp_lightmapStatic;
@@ -86,6 +94,14 @@ namespace GlyphLabs.PristinePipeline
             _dp_materialPrefix = _defaultPreset.FindPropertyRelative("materialPrefix");
             _dp_materialsFolder = _defaultPreset.FindPropertyRelative("materialsFolder");
             _dp_texturesFolder = _defaultPreset.FindPropertyRelative("texturesFolder");
+            // Texture Maps Cache
+            _dp_baseColorPatterns = _defaultPreset.FindPropertyRelative("baseColorPatterns");
+            _dp_normalPatterns = _defaultPreset.FindPropertyRelative("normalPatterns");
+            _dp_metallicPatterns = _defaultPreset.FindPropertyRelative("metallicPatterns");
+            _dp_ormPatterns = _defaultPreset.FindPropertyRelative("ormPatterns");
+            _dp_emissivePatterns = _defaultPreset.FindPropertyRelative("emissivePatterns");
+            _dp_aoPatterns = _defaultPreset.FindPropertyRelative("aoPatterns");
+
             _dp_prefabsFolder = _defaultPreset.FindPropertyRelative("prefabsFolder");
             _dp_generatePrefab = _defaultPreset.FindPropertyRelative("generatePrefab");
             _dp_lightmapStatic = _defaultPreset.FindPropertyRelative("lightmapStatic");
@@ -134,6 +150,14 @@ namespace GlyphLabs.PristinePipeline
                     _dp_meshCompressionInt, _dp_readWrite, _dp_optimizeMesh,
                     _dp_lightmapUVs, _dp_normalsInt, _dp_tangentsInt, _dp_swapUVs,
                     _dp_materialPrefix, _dp_materialsFolder, _dp_texturesFolder,
+                    
+                    _dp_baseColorPatterns,
+                    _dp_normalPatterns,
+                    _dp_metallicPatterns,
+                    _dp_ormPatterns,
+                    _dp_emissivePatterns,
+                    _dp_aoPatterns,
+                    
                     _dp_prefabsFolder, _dp_generatePrefab, _dp_lightmapStatic);
             }
 
@@ -164,6 +188,14 @@ namespace GlyphLabs.PristinePipeline
             SerializedProperty materialPrefix,
             SerializedProperty materialsFolder,
             SerializedProperty texturesFolder,
+
+            SerializedProperty baseColorPatterns,
+            SerializedProperty normalPatterns,
+            SerializedProperty metallicPatterns,
+            SerializedProperty ormPatterns,
+            SerializedProperty emissivePatterns,
+            SerializedProperty aoPatterns,
+
             SerializedProperty prefabsFolder,
             SerializedProperty generatePrefab,
             SerializedProperty lightmapStatic)
@@ -215,7 +247,7 @@ namespace GlyphLabs.PristinePipeline
 
                 // ── Material & Texture ───────────────────────────────────────────
                 EditorGUILayout.Space(4);
-                EditorGUILayout.LabelField("Material & Texture", EditorStyles.miniBoldLabel);
+                EditorGUILayout.LabelField("Material & Texture", EditorStyles.boldLabel);
 
                 EditorGUILayout.PropertyField(materialPrefix,
                     new GUIContent("Material Prefix",
@@ -241,9 +273,49 @@ namespace GlyphLabs.PristinePipeline
                         "Must be a relative path — do not start with \"Assets/\".",
                         MessageType.Warning);
 
+                // ── Texture Maps ─────────────────────────────────────────────────
+
+                DrawPatternListWithValidation(
+                    baseColorPatterns,
+                    "Base Color Patterns",
+                    "At least one Base Color Map pattern is required.",
+                    "T_*_B",
+                    "T_*_BC");
+
+                DrawPatternListWithValidation(
+                    normalPatterns,
+                    "Normal Patterns",
+                    "At least one Normal Map pattern is required.",
+                    "T_*_N");
+
+                DrawPatternListWithValidation(
+                    metallicPatterns,
+                    "Metallic Patterns",
+                    "At least one Metallic Map pattern is required.",
+                    "T_*_MS",
+                    "T_*_M");
+
+                DrawPatternListWithValidation(
+                    ormPatterns,
+                    "ORM Patterns",
+                    "At least one ORM Map pattern is required.",
+                    "T_*_ORM");
+
+                DrawPatternListWithValidation(
+                    emissivePatterns,
+                    "Emissive Patterns",
+                    "At least one Emission Map pattern is required.",
+                    "T_*_E");
+
+                DrawPatternListWithValidation(
+                    aoPatterns,
+                    "AO Patterns",
+                    "At least one AO Map pattern is required.",
+                    "T_*_AO");
+
                 // ── Prefab ───────────────────────────────────────────────────────
                 EditorGUILayout.Space(4);
-                EditorGUILayout.LabelField("Prefab", EditorStyles.miniBoldLabel);
+                EditorGUILayout.LabelField("Prefab", EditorStyles.boldLabel);
 
                 EditorGUILayout.PropertyField(prefabsFolder,
                     new GUIContent("Prefabs Folder",
@@ -263,6 +335,55 @@ namespace GlyphLabs.PristinePipeline
                     new GUIContent("Lightmap Static",
                         "Marks the generated prefab root as ContributeGI."));
             }
+        }
+
+        // ── Private Helpers ──────────────────────────────────────────────────────
+        private static void DrawPatternListWithValidation(
+            SerializedProperty property,
+            string label,
+            string requiredMessage,
+            params string[] defaults)
+        {
+            EditorGUILayout.PropertyField(
+                property,
+                new GUIContent(label),
+                true);
+
+            // Optional list
+            if (defaults == null || defaults.Length == 0)
+                return;
+
+            // Required list validation
+            if (property.arraySize > 0)
+                return;
+
+            EditorGUILayout.HelpBox(
+                requiredMessage,
+                MessageType.Error);
+
+            EditorGUILayout.BeginHorizontal();
+
+            GUILayout.FlexibleSpace();
+            GUIStyle miniButton = new (GUI.skin.button)
+            {
+                fixedHeight = 20
+            };
+
+            if (GUILayout.Button(
+                    "Restore Defaults",
+                    miniButton,
+                    GUILayout.Width(140)))
+            {
+                property.arraySize = defaults.Length;
+
+                for (int i = 0; i < defaults.Length; i++)
+                {
+                    property.GetArrayElementAtIndex(i)
+                        .stringValue = defaults[i];
+                }
+            }
+
+            EditorGUILayout.EndHorizontal();
         }
 
         // ── Rules list ───────────────────────────────────────────────────────────
@@ -290,6 +411,13 @@ namespace GlyphLabs.PristinePipeline
                 SerializedProperty rp_materialPrefix = preset.FindPropertyRelative("materialPrefix");
                 SerializedProperty rp_materialsFolder = preset.FindPropertyRelative("materialsFolder");
                 SerializedProperty rp_texturesFolder = preset.FindPropertyRelative("texturesFolder");
+
+                SerializedProperty rp_baseColorPatterns = preset.FindPropertyRelative("baseColorPatterns");
+                SerializedProperty rp_normalPatterns = preset.FindPropertyRelative("normalPatterns");
+                SerializedProperty rp_metallicPatterns = preset.FindPropertyRelative("metallicPatterns");
+                SerializedProperty rp_ormPatterns = preset.FindPropertyRelative("ormPatterns");
+                SerializedProperty rp_emissivePatterns = preset.FindPropertyRelative("emissivePatterns");
+                SerializedProperty rp_aoPatterns = preset.FindPropertyRelative("aoPatterns");
                 SerializedProperty rp_prefabsFolder = preset.FindPropertyRelative("prefabsFolder");
                 SerializedProperty rp_generatePrefab = preset.FindPropertyRelative("generatePrefab");
                 SerializedProperty rp_lightmapStatic = preset.FindPropertyRelative("lightmapStatic");
@@ -315,6 +443,10 @@ namespace GlyphLabs.PristinePipeline
                             rp_meshCompressionInt, rp_readWrite, rp_optimizeMesh,
                             rp_lightmapUVs, rp_normalsInt, rp_tangentsInt, rp_swapUVs,
                             rp_materialPrefix, rp_materialsFolder, rp_texturesFolder,
+
+                            rp_baseColorPatterns,rp_normalPatterns,rp_metallicPatterns,
+                            rp_ormPatterns,rp_emissivePatterns,rp_aoPatterns,
+
                             rp_prefabsFolder, rp_generatePrefab, rp_lightmapStatic);
                     }
                 }

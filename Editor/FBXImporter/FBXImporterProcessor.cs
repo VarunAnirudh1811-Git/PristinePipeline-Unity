@@ -90,24 +90,18 @@ namespace GlyphLabs.PristinePipeline
             FBXImportProfile profile = ProfileRegistry.GetActiveImportProfile();
             if (profile == null) return;
 
-            // Skip if naming convention is enforced and the name is invalid —
-            // consistent with OnPreprocessModel which also returns early in that case.
             if (!FBXImporterUtility.ValidateName(profile, assetPath)
-                && profile.enforceNamingConvention)
-                return;
+                && profile.enforceNamingConvention) return;
 
             FBXImportPreset preset = FBXImporterUtility.FindMatchingPreset(profile, assetPath);
             if (preset == null) return;
 
-            // RunPostImportSteps handles material creation, texture assignment, and
-            // conditional prefab generation. It calls AssetDatabase.Refresh internally.
-            // The importedModel parameter here is the in-memory object — we pass the
-            // asset path so the utility can load the on-disk asset for prefab generation.
-
-            EditorApplication.delayCall += () =>
+            FBXPostImportQueue.Enqueue(new PostImportJob
             {
-                FBXImporterUtility.RunPostImportSteps(assetPath, preset, profile);
-            };
+                assetPath = assetPath,
+                preset = preset,
+                profile = profile
+            });
         }
     }
 }

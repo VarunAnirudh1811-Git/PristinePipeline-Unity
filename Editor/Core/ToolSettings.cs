@@ -143,6 +143,19 @@ namespace GlyphLabs.PristinePipeline
             set => EditorPrefs.SetString(Key(FBX_ProfileSavePathKey), value);
         }
 
+        private const string FBX_PostImportDebounceSecondsKey = "FBX.PostImportDebounceSeconds";
+
+        /// <summary>
+        /// How long (in seconds) the post-import queue waits after the last enqueue
+        /// before beginning to drain. Increase this on slower machines or when
+        /// importing large batches. Default: 0.3 seconds.
+        /// </summary>
+        public static float FBX_PostImportDebounceSeconds
+        {
+            get => EditorPrefs.GetFloat(Key(FBX_PostImportDebounceSecondsKey), 0.3f);
+            set => EditorPrefs.SetFloat(Key(FBX_PostImportDebounceSecondsKey), Mathf.Clamp(value, 0.1f, 2.0f));
+        }
+
         // ── Utilities ────────────────────────────────────────────────────────────
 
 
@@ -217,6 +230,7 @@ namespace GlyphLabs.PristinePipeline
             EditorPrefs.DeleteKey(Key(FBX_ActiveProfileGuidKey));
             EditorPrefs.DeleteKey(Key(FBX_ProfileSavePathKey));
             EditorPrefs.DeleteKey(Key(Organizer_AdditionalScopePathsKey));
+            EditorPrefs.DeleteKey(Key(FBX_PostImportDebounceSecondsKey));
         }        
 
     }

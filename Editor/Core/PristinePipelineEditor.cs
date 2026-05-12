@@ -383,6 +383,36 @@ namespace GlyphLabs.PristinePipeline
                 }
             }
 
+            EditorGUILayout.Space(6);
+
+            using (new EditorGUI.IndentLevelScope(1))
+            {
+                EditorGUILayout.LabelField(
+                    new GUIContent("Post-Import Debounce",
+                        "Seconds the queue waits after the last FBX import before " +
+                        "processing materials, textures, and prefabs. " +
+                        "Increase if imports feel interrupted on slower machines."),
+                    EditorStyles.label);
+
+                float currentDebounce = ToolSettings.FBX_PostImportDebounceSeconds;
+
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    float updated = EditorGUILayout.Slider(currentDebounce, 0.1f, 2.0f);
+                    EditorGUILayout.LabelField("s", GUILayout.Width(14));
+
+                    if (!Mathf.Approximately(updated, currentDebounce))
+                        ToolSettings.FBX_PostImportDebounceSeconds = updated;
+                }
+
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    GUILayout.FlexibleSpace();
+                    if (GUILayout.Button("Reset to Default", GUILayout.Width(120)))
+                        ToolSettings.FBX_PostImportDebounceSeconds = 0.3f;
+                }
+            }
+
             DrawDivider();
 
             EditorGUILayout.LabelField("Danger Zone", EditorStyles.boldLabel);

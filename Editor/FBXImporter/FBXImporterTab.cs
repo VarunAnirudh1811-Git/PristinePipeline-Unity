@@ -158,12 +158,16 @@ namespace GlyphLabs.PristinePipeline
             GUI.backgroundColor = bg;
             EditorGUILayout.Space(4);
 
+            float buttonWidth = (EditorGUIUtility.currentViewWidth - 8f) * 0.5f;
+
+            EditorGUILayout.BeginHorizontal();
+
             // ── Secondary action — Generate Prefabs ──────────────────────────────
             GUI.backgroundColor = canAct ? new Color(0.45f, 0.78f, 0.45f) : bg;
 
             if (GUILayout.Button(
                 "  Generate Prefabs Now",
-                GUILayout.Height(26)))
+                GUILayout.Height(26), GUILayout.Width(buttonWidth)))
             {
                 if (EditorUtility.DisplayDialog(
                     "Generate Prefabs",
@@ -180,6 +184,34 @@ namespace GlyphLabs.PristinePipeline
             }
 
             GUI.backgroundColor = bg;
+
+            // ── Tertiary action — Reassign Textures ──────────────────────────────────
+            GUI.backgroundColor = canAct ? new Color(0.75f, 0.65f, 0.95f) : bg;
+
+            if (GUILayout.Button(
+                "  Reassign Textures",
+                GUILayout.Height(26), GUILayout.Width(buttonWidth)))
+            {
+                if (EditorUtility.DisplayDialog(
+                    "Reassign Textures",
+                    $"Re-scan all materials under '{ToolSettings.ActiveRootPath}' and assign " +
+                    $"matching textures using the '{ActiveProfile.profileName}' profile.\n\n" +
+                    $"Existing texture assignments will be overwritten if a matching " +
+                    $"texture is found. Continue?",
+                    "Reassign", "Cancel"))
+                {
+                    int count = FBXImporterUtility.ReassignTexturesForProfile(ActiveProfile);
+                    EditorUtility.DisplayDialog(
+                        "Reassign Complete",
+                        $"{count} material(s) updated.",
+                        "OK");
+                }
+            }
+
+            GUI.backgroundColor = bg;
+
+            EditorGUILayout.EndHorizontal();
+
             GUI.enabled = true;
 
             if (!canAct)

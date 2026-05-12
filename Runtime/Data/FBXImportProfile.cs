@@ -85,6 +85,48 @@ namespace GlyphLabs.PristinePipeline
         [Tooltip("Path relative to Active Root searched for matching textures — e.g. Art/Textures. Not recursive.")]
         public string texturesFolder = "Art/Textures";
 
+        // ── Texture naming patterns ─────────────────────────────────────────
+
+        [Header("Texture Naming Patterns")]
+
+        [Tooltip("Wildcard patterns used to locate Base Color textures.")]
+        public List<string> baseColorPatterns = new()
+        {
+            "T_*_B",
+            "T_*_BC"
+        };
+
+        [Tooltip("Wildcard patterns used to locate Normal textures.")]
+        public List<string> normalPatterns = new()
+        {
+            "T_*_N"
+        };
+
+        [Tooltip("Wildcard patterns used to locate Metallic textures.")]
+        public List<string> metallicPatterns = new()
+        {
+            "T_*_MS",
+            "T_*_M"
+        };
+
+        [Tooltip("Wildcard patterns used to locate ORM textures.")]
+        public List<string> ormPatterns = new()
+        {
+            "T_*_ORM"
+        };
+
+        [Tooltip("Wildcard patterns used to locate Emissive textures.")]
+        public List<string> emissivePatterns = new()
+        {
+            "T_*_E"
+        };
+
+        [Tooltip("Wildcard patterns used to locate Ambient Occlusion textures.")]
+        public List<string> aoPatterns = new()
+        {
+            "T_*_AO"
+        };
+
         [Tooltip("Path relative to Active Root where generated prefabs are saved — e.g. Level/Prefabs.")]
         public string prefabsFolder = "Level/Prefabs";
 
