@@ -156,17 +156,6 @@ namespace GlyphLabs.PristinePipeline
             set => EditorPrefs.SetFloat(Key(FBX_PostImportDebounceSecondsKey), Mathf.Clamp(value, 0.1f, 2.0f));
         }
 
-        // ── Utilities ────────────────────────────────────────────────────────────
-
-
-        public static string ResolveRelativeToActiveRoot(string relativePath)
-        {
-            string root = ActiveRootPath.TrimEnd('/');
-            return string.IsNullOrWhiteSpace(relativePath)
-                ? root
-                : root + "/" + relativePath.Trim('/');
-        }
-
         // ── ADDITIONS TO ToolSettings.cs ────────────────────────────────────────────
         //
         // Add the following block inside the Asset Organizer section, after

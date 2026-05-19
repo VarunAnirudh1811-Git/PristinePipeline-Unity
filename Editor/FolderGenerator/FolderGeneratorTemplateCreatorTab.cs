@@ -12,7 +12,7 @@ namespace GlyphLabs.PristinePipeline
     /// Rendered by FolderGeneratorTab when in create or edit mode — not a separate window.
     /// Owns no persistent state beyond what the user is currently editing.
     /// </summary>
-    public class TemplateCreatorTab
+    public class FolderGeneratorTemplateCreatorTab
     {
         // ── State ────────────────────────────────────────────────────────────────
 

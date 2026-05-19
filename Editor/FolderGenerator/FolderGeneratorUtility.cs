@@ -12,7 +12,7 @@ namespace GlyphLabs.PristinePipeline
     /// Stateless utility methods for the Folder Generator.
     /// No EditorWindow dependency — safe to call from any editor context.
     /// All operations that touch the AssetDatabase or filesystem live here,
-    /// keeping FolderGeneratorTab and TemplateCreatorTab focused on UI only.
+    /// keeping FolderGeneratorTab and FolderGeneratorTemplateCreatorTab focused on UI only.
     /// </summary>
     /// v1.2 — Active Root refactor:
     ///   - CreateFolders no longer accepts a rootPath parameter. It reads
@@ -22,11 +22,7 @@ namespace GlyphLabs.PristinePipeline
     ///     or preview should read ToolSettings.ActiveRootPath directly.
     public static class FolderGeneratorUtility
     {
-        private static string ProjectRoot =>
-            Application.dataPath.Substring(0, Application.dataPath.Length - "/Assets".Length);
-
         // ── Template loading ─────────────────────────────────────────────────────
-
         /// <summary>
         /// Loads all FolderTemplate assets visible to the project.
         /// Built-in templates (from the package) are loaded first, then user templates
@@ -34,54 +30,23 @@ namespace GlyphLabs.PristinePipeline
         /// </summary>
         public static List<FolderTemplate> LoadAllTemplates()
         {
-            var templates = new List<FolderTemplate>();
-            string builtInPath = ToolInfo.BuiltInTemplatePath;
-            string userPath = ToolSettings.FolderGen_TemplateSavePath;
-
-            if (AssetDatabase.IsValidFolder(builtInPath))
-            {
-                LoadTemplatesFromPath(builtInPath, templates);
-            }
-                        
-
-            if (AssetDatabase.IsValidFolder(userPath))
-            {
-                LoadTemplatesFromPath(userPath, templates);
-            }
-
-            return templates;
+            return PristinePipelineUtility.LoadAllProfiles<FolderTemplate>(
+                ToolSettings.FolderGen_TemplateSavePath,
+                ToolInfo.BuiltInTemplatePath,
+                onLoaded: (template, path) => template.isBuiltIn = path.StartsWith("Packages/")
+            );
         }
 
-        private static void LoadTemplatesFromPath(string folderPath, List<FolderTemplate> results)
-        {
-            string[] guids = AssetDatabase.FindAssets("t:FolderTemplate", new[] { folderPath });
-
-            foreach (string guid in guids)
-            {
-                string path = AssetDatabase.GUIDToAssetPath(guid);
-                var template = AssetDatabase.LoadAssetAtPath<FolderTemplate>(path);
-
-                if (template != null && !results.Contains(template))
-                {
-                    results.Add(template);
-                    template.isBuiltIn = path.StartsWith("Packages/");
-                }
-            }
-        }
-
-        /// <summary>
-        /// Returns an array of display names for a list of templates.
-        /// Built-in templates are suffixed with " (Built-in)" in the dropdown.
-        /// </summary>
         public static string[] GetTemplateDisplayNames(List<FolderTemplate> templates)
         {
-            return templates
-                .Select(t => t.isBuiltIn ? $"{t.templateName} (Built-in)" : t.templateName)
-                .ToArray();
+            return PristinePipelineUtility.GetAssetDisplayNames(
+                templates,
+                t => t.templateName,
+                t => t.isBuiltIn
+            );
         }
 
         // ── Template persistence ─────────────────────────────────────────────────
-
         /// <summary>
         /// Saves a FolderTemplate asset. If the asset already exists in the database
         /// it is updated in place (rename handled if name changed). If it is new,
@@ -89,37 +54,11 @@ namespace GlyphLabs.PristinePipeline
         /// </summary>
         public static void SaveTemplate(FolderTemplate template)
         {
-            if (template == null) return;
-
-            EnsureDirectoryExists(ToolSettings.FolderGen_TemplateSavePath);
-
-            if (AssetDatabase.Contains(template))
-            {
-                // Rename the asset file if the templateName changed
-                string existingPath = AssetDatabase.GetAssetPath(template);
-                string expectedFile = template.templateName + ".asset";
-
-                if (Path.GetFileName(existingPath) != expectedFile)
-                {
-                    string renameError = AssetDatabase.RenameAsset(existingPath, template.templateName);
-                    if (!string.IsNullOrEmpty(renameError))
-                        Debug.LogWarning($"{ToolInfo.LogPrefix} Could not rename template asset: {renameError}");
-                }
-
-                EditorUtility.SetDirty(template);
-                AssetDatabase.SaveAssets();
-            }
-            else
-            {
-                string assetPath = Path.Combine(
-                    ToolSettings.FolderGen_TemplateSavePath,
-                    template.templateName + ".asset").Replace("\\", "/");
-
-                AssetDatabase.CreateAsset(template, assetPath);
-            }
-
-            AssetDatabase.Refresh();
-            Debug.Log($"{ToolInfo.LogPrefix} Template saved: {template.templateName}");
+            PristinePipelineUtility.SaveProfile(
+                template,
+                ToolSettings.FolderGen_TemplateSavePath,
+                t => t.templateName
+            );
         }
 
         /// <summary>
@@ -128,24 +67,20 @@ namespace GlyphLabs.PristinePipeline
         /// </summary>
         public static FolderTemplate CloneTemplate(FolderTemplate source)
         {
-            if (source == null) return null;
-
-            EnsureDirectoryExists(ToolSettings.FolderGen_TemplateSavePath);
-
-            string cloneName = source.templateName + "_Copy";
-            string assetPath = BuildUniqueAssetPath(ToolSettings.FolderGen_TemplateSavePath, cloneName);
-
-            var clone = ScriptableObject.CreateInstance<FolderTemplate>();
-            clone.templateName = Path.GetFileNameWithoutExtension(assetPath);
-            clone.description = source.description;
-            clone.isBuiltIn = false;
-            clone.SetFolderPaths(new List<string>(source.FolderPaths));
-
-            AssetDatabase.CreateAsset(clone, assetPath);
-            AssetDatabase.Refresh();
-
-            Debug.Log($"{ToolInfo.LogPrefix} Cloned '{source.templateName}' → '{clone.templateName}'");
-            return clone;
+            return PristinePipelineUtility.CloneProfile(
+                source,
+                ToolSettings.FolderGen_TemplateSavePath,
+                t => t.templateName,
+                src =>
+                {
+                    var clone = ScriptableObject.CreateInstance<FolderTemplate>();
+                    clone.templateName = src.templateName + "_Copy";
+                    clone.description = src.description;
+                    clone.isBuiltIn = false;
+                    clone.SetFolderPaths(new List<string>(src.FolderPaths));
+                    return clone;
+                }
+            );
         }
 
         /// <summary>
@@ -153,16 +88,11 @@ namespace GlyphLabs.PristinePipeline
         /// </summary>
         public static void DeleteTemplate(FolderTemplate template)
         {
-            if (template == null || template.isBuiltIn) return;
-
-            string path = AssetDatabase.GetAssetPath(template);
-
-            if (!string.IsNullOrEmpty(path))
-            {
-                AssetDatabase.DeleteAsset(path);
-                AssetDatabase.Refresh();
-                Debug.Log($"{ToolInfo.LogPrefix} Deleted template: {template.templateName}");
-            }
+            PristinePipelineUtility.DeleteProfile(
+                template,
+                t => t.isBuiltIn,
+                t => t.templateName
+            );
         }
 
         // ── Template import / export ─────────────────────────────────────────────
@@ -172,25 +102,16 @@ namespace GlyphLabs.PristinePipeline
         /// </summary>
         public static void ExportTemplate(FolderTemplate template)
         {
-            if (template == null) return;
-
-            string path = EditorUtility.SaveFilePanel(
-                "Export Template",
-                "",
-                template.templateName,
-                "json");
-
-            if (string.IsNullOrEmpty(path)) return;
-
-            var data = new FolderTemplateData
-            {
-                templateName = template.templateName,
-                description = template.description,
-                folderPaths = new List<string>(template.FolderPaths)
-            };
-
-            File.WriteAllText(path, JsonUtility.ToJson(data, prettyPrint: true));
-            Debug.Log($"{ToolInfo.LogPrefix} Exported template to: {path}");
+            PristinePipelineUtility.ExportProfile(
+                template,
+                t => new FolderTemplateData
+                {
+                    templateName = t.templateName,
+                    description = t.description,
+                    folderPaths = new List<string>(t.FolderPaths)
+                },
+                t => t.templateName
+            );
         }
 
         /// <summary>
@@ -199,44 +120,22 @@ namespace GlyphLabs.PristinePipeline
         /// </summary>
         public static FolderTemplate ImportTemplate()
         {
-            string path = EditorUtility.OpenFilePanel("Import Template", "", "json");
-            if (string.IsNullOrEmpty(path)) return null;
-
-            try
-            {
-                string json = File.ReadAllText(path);
-                var data = JsonUtility.FromJson<FolderTemplateData>(json);
-
-                if (data == null || string.IsNullOrWhiteSpace(data.templateName))
+            return PristinePipelineUtility.ImportProfile<FolderTemplate>(
+                ToolSettings.FolderGen_TemplateSavePath,
+                "Folder Template",
+                json =>
                 {
-                    EditorUtility.DisplayDialog(
-                        "Import Failed",
-                        "The selected file is not a valid Folder Template.",
-                        "OK");
-                    return null;
+                    var data = JsonUtility.FromJson<FolderTemplateData>(json);
+                    if (data == null || string.IsNullOrWhiteSpace(data.templateName))
+                        return null;
+
+                    var template = ScriptableObject.CreateInstance<FolderTemplate>();
+                    template.templateName = data.templateName;
+                    template.description = data.description;
+                    template.SetFolderPaths(data.folderPaths ?? new List<string>());
+                    return template;
                 }
-
-                EnsureDirectoryExists(ToolSettings.FolderGen_TemplateSavePath);
-
-                string assetPath = BuildUniqueAssetPath(ToolSettings.FolderGen_TemplateSavePath, data.templateName);
-
-                var template = ScriptableObject.CreateInstance<FolderTemplate>();
-                template.templateName = Path.GetFileNameWithoutExtension(assetPath);
-                template.description = data.description;
-                template.SetFolderPaths(data.folderPaths ?? new List<string>());
-
-                AssetDatabase.CreateAsset(template, assetPath);
-                AssetDatabase.Refresh();
-
-                Debug.Log($"{ToolInfo.LogPrefix} Imported template: {template.templateName}");
-                return template;
-            }
-            catch (Exception ex)
-            {
-                Debug.LogError($"{ToolInfo.LogPrefix} Import failed: {ex.Message}");
-                EditorUtility.DisplayDialog("Import Failed", "An error occurred while reading the file.", "OK");
-                return null;
-            }
+            );
         }
 
         // ── Folder creation ──────────────────────────────────────────────────────
@@ -261,7 +160,7 @@ namespace GlyphLabs.PristinePipeline
                     if (string.IsNullOrEmpty(normalized)) continue;
 
                     string assetRelativePath = root + "/" + normalized;
-                    string fullPath = ToAbsolutePath(assetRelativePath);
+                    string fullPath = PristinePipelineUtility.ToAbsolutePath(assetRelativePath);
 
                     try
                     {
@@ -323,31 +222,7 @@ namespace GlyphLabs.PristinePipeline
         private static bool IsDirectoryEmpty(string path) =>
             Directory.GetFiles(path).Length == 0 &&
             Directory.GetDirectories(path).Length == 0;
-
-        private static string ToAbsolutePath(string unityAssetPath) =>
-            Path.Combine(ProjectRoot, unityAssetPath).Replace("\\", "/");
-
-        private static void EnsureDirectoryExists(string unityAssetPath)
-        {
-            string absolutePath = ToAbsolutePath(unityAssetPath);
-
-            if (!Directory.Exists(absolutePath))
-                Directory.CreateDirectory(absolutePath);
-        }
-
-        private static string BuildUniqueAssetPath(string folderPath, string baseName)
-        {
-            string candidate = Path.Combine(folderPath, baseName + ".asset").Replace("\\", "/");
-            int counter = 1;
-
-            while (File.Exists(ToAbsolutePath(candidate)))
-            {
-                candidate = Path.Combine(folderPath, $"{baseName}{counter}.asset").Replace("\\", "/");
-                counter++;
-            }
-
-            return candidate;
-        }
+        
     }
 
     // ── JSON serialization container ─────────────────────────────────────────────

@@ -38,45 +38,20 @@ namespace GlyphLabs.PristinePipeline
         /// </summary>
         public static List<AssetMappingProfile> LoadAllProfiles()
         {
-            var profiles = new List<AssetMappingProfile>();
-            string userPath = ToolSettings.Organizer_ProfileSavePath;
-            string builtInPath = ToolInfo.BuiltInMappingProfilePath;
-
-            if (AssetDatabase.IsValidFolder(builtInPath))
-                LoadProfilesFromPath(builtInPath, profiles);
-
-            if (!string.IsNullOrWhiteSpace(userPath))
-            {
-                EnsureAssetFolderExists(userPath);
-                LoadProfilesFromPath(userPath, profiles);
-            }
-
-            return profiles;
+            return PristinePipelineUtility.LoadAllProfiles<AssetMappingProfile>(
+                ToolSettings.Organizer_ProfileSavePath,
+                ToolInfo.BuiltInMappingProfilePath,
+                onLoaded: (profile, path) => profile.isBuiltIn = path.StartsWith("Packages/")
+            );
         }
 
-        private static void LoadProfilesFromPath(string folderPath, List<AssetMappingProfile> results)
-        {
-            string[] guids = AssetDatabase.FindAssets("t:AssetMappingProfile", new[] { folderPath });
-
-            foreach (string guid in guids)
-            {
-                string path = AssetDatabase.GUIDToAssetPath(guid);
-                var profile = AssetDatabase.LoadAssetAtPath<AssetMappingProfile>(path);
-
-                if (profile != null && !results.Contains(profile))
-                {
-                    results.Add(profile);
-                    profile.isBuiltIn = path.StartsWith("Packages/");
-                }
-            }
-        }
-
-        /// <summary>Returns display names for a list of profiles.</summary>
         public static string[] GetProfileDisplayNames(List<AssetMappingProfile> profiles)
         {
-            return profiles
-                .Select(p => p.isBuiltIn ? $"{p.profileName} (Built-in)" : p.profileName)
-                .ToArray();
+            return PristinePipelineUtility.GetAssetDisplayNames(
+                profiles,
+                p => p.profileName,
+                p => p.isBuiltIn
+            );
         }
 
         // ── Profile persistence ──────────────────────────────────────────────────
@@ -87,37 +62,11 @@ namespace GlyphLabs.PristinePipeline
         /// </summary>
         public static void SaveProfile(AssetMappingProfile profile)
         {
-            if (profile == null) return;
-
-            EnsureDirectoryExists(ToolSettings.Organizer_ProfileSavePath);
-
-            if (AssetDatabase.Contains(profile))
-            {
-                string existingPath = AssetDatabase.GetAssetPath(profile);
-                string expectedFile = profile.profileName + ".asset";
-
-                if (Path.GetFileName(existingPath) != expectedFile)
-                {
-                    string renameError = AssetDatabase.RenameAsset(existingPath, profile.profileName);
-                    if (!string.IsNullOrEmpty(renameError))
-                        Debug.LogWarning(
-                            $"{ToolInfo.LogPrefix} Could not rename profile asset: {renameError}");
-                }
-
-                EditorUtility.SetDirty(profile);
-                AssetDatabase.SaveAssets();
-            }
-            else
-            {
-                string assetPath = Path.Combine(
-                    ToolSettings.Organizer_ProfileSavePath,
-                    profile.profileName + ".asset").Replace("\\", "/");
-
-                AssetDatabase.CreateAsset(profile, assetPath);
-            }
-
-            AssetDatabase.Refresh();
-            Debug.Log($"{ToolInfo.LogPrefix} Profile saved: {profile.profileName}");
+            PristinePipelineUtility.SaveProfile(
+                profile,
+                ToolSettings.Organizer_ProfileSavePath,
+                p => p.profileName
+            );
         }
 
         /// <summary>
@@ -125,38 +74,22 @@ namespace GlyphLabs.PristinePipeline
         /// </summary>
         public static void DeleteProfile(AssetMappingProfile profile)
         {
-            if (profile == null) return;
-
-            string path = AssetDatabase.GetAssetPath(profile);
-
-            if (!string.IsNullOrEmpty(path))
-            {
-                AssetDatabase.DeleteAsset(path);
-                AssetDatabase.Refresh();
-                Debug.Log($"{ToolInfo.LogPrefix} Deleted profile: {profile.profileName}");
-            }
+            PristinePipelineUtility.DeleteProfile(
+                profile,
+                p => p.isBuiltIn,    // Built-in profiles cannot be deleted
+                p => p.profileName
+            );
         }
 
         /// <summary>Creates a duplicate of the given profile at the save path.</summary>
         public static AssetMappingProfile CloneProfile(AssetMappingProfile source)
         {
-            if (source == null) return null;
-
-            EnsureDirectoryExists(ToolSettings.Organizer_ProfileSavePath);
-
-            string cloneName = source.profileName + "_Copy";
-            string assetPath = BuildUniqueAssetPath(
-                ToolSettings.Organizer_ProfileSavePath, cloneName);
-
-            var clone = UnityEngine.Object.Instantiate(source);
-            clone.profileName = Path.GetFileNameWithoutExtension(assetPath);
-
-            AssetDatabase.CreateAsset(clone, assetPath);
-            AssetDatabase.Refresh();
-
-            Debug.Log(
-                $"{ToolInfo.LogPrefix} Cloned '{source.profileName}' → '{clone.profileName}'");
-            return clone;
+            return PristinePipelineUtility.CloneProfile(
+                source,
+                ToolSettings.Organizer_ProfileSavePath,
+                p => p.profileName,
+                src => UnityEngine.Object.Instantiate(src)  // Simple clone for AssetMappingProfile
+            );
         }
 
         // ── Profile import / export ──────────────────────────────────────────────
@@ -164,67 +97,37 @@ namespace GlyphLabs.PristinePipeline
         /// <summary>Exports an AssetMappingProfile to a JSON file.</summary>
         public static void ExportProfile(AssetMappingProfile profile)
         {
-            if (profile == null) return;
-
-            string path = EditorUtility.SaveFilePanel(
-                "Export Asset Mapping Profile", "", profile.profileName, "json");
-
-            if (string.IsNullOrEmpty(path)) return;
-
-            var data = new AssetMappingProfileData
-            {
-                profileName = profile.profileName,
-                description = profile.description,
-                rules = new List<MappingRule>(profile.Rules)
-            };
-
-            File.WriteAllText(path, JsonUtility.ToJson(data, prettyPrint: true));
-            Debug.Log($"{ToolInfo.LogPrefix} Exported Asset Mapping Profile to: {path}");
+            PristinePipelineUtility.ExportProfile(
+                profile,
+                p => new AssetMappingProfileData
+                {
+                    profileName = p.profileName,
+                    description = p.description,
+                    rules = new List<MappingRule>(p.Rules)
+                },
+                p => p.profileName
+            );
         }
 
         /// <summary>Imports an AssetMappingProfile from a JSON file.</summary>
         public static AssetMappingProfile ImportProfile()
         {
-            string path = EditorUtility.OpenFilePanel("Import Asset Mapping Profile", "", "json");
-            if (string.IsNullOrEmpty(path)) return null;
-
-            try
-            {
-                string json = File.ReadAllText(path);
-                var data = JsonUtility.FromJson<AssetMappingProfileData>(json);
-
-                if (data == null || string.IsNullOrWhiteSpace(data.profileName))
+            return PristinePipelineUtility.ImportProfile<AssetMappingProfile>(
+                ToolSettings.Organizer_ProfileSavePath,
+                "Asset Mapping Profile",
+                json =>
                 {
-                    EditorUtility.DisplayDialog(
-                        "Import Failed",
-                        "The selected file is not a valid Asset Mapping Profile.",
-                        "OK");
-                    return null;
+                    var data = JsonUtility.FromJson<AssetMappingProfileData>(json);
+                    if (data == null || string.IsNullOrWhiteSpace(data.profileName))
+                        return null;
+
+                    var profile = ScriptableObject.CreateInstance<AssetMappingProfile>();
+                    profile.profileName = data.profileName;
+                    profile.description = data.description;
+                    profile.SetRules(data.rules ?? new List<MappingRule>());
+                    return profile;
                 }
-
-                EnsureDirectoryExists(ToolSettings.Organizer_ProfileSavePath);
-
-                string assetPath = BuildUniqueAssetPath(
-                    ToolSettings.Organizer_ProfileSavePath, data.profileName);
-
-                var profile = ScriptableObject.CreateInstance<AssetMappingProfile>();
-                profile.profileName = Path.GetFileNameWithoutExtension(assetPath);
-                profile.description = data.description;
-                profile.SetRules(data.rules ?? new List<MappingRule>());
-
-                AssetDatabase.CreateAsset(profile, assetPath);
-                AssetDatabase.Refresh();
-
-                Debug.Log($"{ToolInfo.LogPrefix} Imported Asset Mapping Profile: {profile.profileName}");
-                return profile;
-            }
-            catch (Exception ex)
-            {
-                Debug.LogError($"{ToolInfo.LogPrefix} Import failed: {ex.Message}");
-                EditorUtility.DisplayDialog(
-                    "Import Failed", "An error occurred while reading the file.", "OK");
-                return null;
-            }
+            );
         }
 
         [Serializable]
@@ -315,48 +218,13 @@ namespace GlyphLabs.PristinePipeline
                 if (!rule.extension.TrimStart('.').ToLowerInvariant().Equals(extension))
                     continue;
 
-                if (rule.HasNamePattern && !MatchesWildcard(fileName, rule.namePattern))
+                if (rule.HasNamePattern && !PristinePipelineUtility.MatchesWildcard(fileName, rule.namePattern))
                     continue;
 
                 lastMatch = rule;
             }
 
             return lastMatch;
-        }
-
-        /// <summary>
-        /// Wildcard pattern matching supporting * (any sequence) and ? (any single char).
-        /// Case-insensitive. Dynamic programming — handles all edge cases correctly.
-        /// </summary>
-        public static bool MatchesWildcard(string input, string pattern)
-        {
-            if (string.IsNullOrEmpty(pattern)) return true;
-            if (string.IsNullOrEmpty(input)) return false;
-
-            input = input.ToLowerInvariant();
-            pattern = pattern.ToLowerInvariant();
-
-            int inputLen = input.Length;
-            int patternLen = pattern.Length;
-
-            bool[,] dp = new bool[inputLen + 1, patternLen + 1];
-            dp[0, 0] = true;
-
-            for (int j = 1; j <= patternLen; j++)
-                if (pattern[j - 1] == '*') dp[0, j] = dp[0, j - 1];
-
-            for (int i = 1; i <= inputLen; i++)
-            {
-                for (int j = 1; j <= patternLen; j++)
-                {
-                    if (pattern[j - 1] == '*')
-                        dp[i, j] = dp[i, j - 1] || dp[i - 1, j];
-                    else if (pattern[j - 1] == '?' || pattern[j - 1] == input[i - 1])
-                        dp[i, j] = dp[i - 1, j - 1];
-                }
-            }
-
-            return dp[inputLen, patternLen];
         }
 
         // ── Asset moving ─────────────────────────────────────────────────────────
@@ -374,7 +242,7 @@ namespace GlyphLabs.PristinePipeline
                 return false;
 
             // Resolve relative destination to a full Unity asset path
-            string destination = ToolSettings.ResolveRelativeToActiveRoot(rule.destinationFolder);
+            string destination = PristinePipelineUtility.ResolveRelativeToActiveRoot(rule.destinationFolder);
             string fileName = Path.GetFileName(assetPath);
             string targetPath = destination + "/" + fileName;
 
@@ -391,7 +259,7 @@ namespace GlyphLabs.PristinePipeline
                 return false;
             }
 
-            EnsureAssetFolderExists(destination);
+            PristinePipelineUtility.EnsureAssetFolderExists(destination);
 
             string error = AssetDatabase.MoveAsset(assetPath, targetPath);
 
@@ -472,67 +340,6 @@ namespace GlyphLabs.PristinePipeline
 
             return messages;
         }
-
-        // ── Path resolution ──────────────────────────────────────────────────────
-
-        /// <summary>
-        /// Resolves a folder path that is relative to the Active Root into a full
-        /// Unity asset path. Examples (Active Root = "Assets/GameA"):
-        ///   "Art/Textures"   → "Assets/GameA/Art/Textures"
-        ///   "Level/Prefabs"  → "Assets/GameA/Level/Prefabs"
-        /// </summary>
         
-        // ── Private helpers ──────────────────────────────────────────────────────
-
-        private static string ProjectRoot =>
-            Application.dataPath[..^"/Assets".Length];
-
-        private static string ToAbsolutePath(string unityAssetPath) =>
-            Path.Combine(ProjectRoot, unityAssetPath).Replace("\\", "/");
-
-        private static void EnsureDirectoryExists(string unityAssetPath)
-        {
-            string absolutePath = ToAbsolutePath(unityAssetPath);
-            if (!Directory.Exists(absolutePath))
-                Directory.CreateDirectory(absolutePath);
-        }
-
-        /// <summary>
-        /// Ensures a folder exists in the AssetDatabase, creating each missing
-        /// segment of the path using AssetDatabase.CreateFolder so Unity tracks it.
-        /// Accepts full Unity asset paths (starting with "Assets/").
-        /// </summary>
-        private static void EnsureAssetFolderExists(string folderPath)
-        {
-            if (AssetDatabase.IsValidFolder(folderPath)) return;
-
-            string[] segments = folderPath.Split('/');
-            string current = segments[0];
-
-            for (int i = 1; i < segments.Length; i++)
-            {
-                string next = current + "/" + segments[i];
-
-                if (!AssetDatabase.IsValidFolder(next))
-                    AssetDatabase.CreateFolder(current, segments[i]);
-
-                current = next;
-            }
-        }
-
-        private static string BuildUniqueAssetPath(string folderPath, string baseName)
-        {
-            string candidate = Path.Combine(folderPath, baseName + ".asset").Replace("\\", "/");
-            int counter = 1;
-
-            while (File.Exists(ToAbsolutePath(candidate)))
-            {
-                candidate = Path.Combine(
-                    folderPath, $"{baseName}{counter}.asset").Replace("\\", "/");
-                counter++;
-            }
-
-            return candidate;
-        }
     }
 }

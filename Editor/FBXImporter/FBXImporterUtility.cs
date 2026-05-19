@@ -29,191 +29,101 @@ namespace GlyphLabs.PristinePipeline
         /// </summary>
         public static List<FBXImportProfile> LoadAllProfiles()
         {
-            var profiles = new List<FBXImportProfile>();
-            string userPath = ToolSettings.FBX_ProfileSavePath;
-            string builtInPath = ToolInfo.BuiltInImporterProfilePath;
-
-            if (AssetDatabase.IsValidFolder(builtInPath))
-                LoadProfilesFromPath(builtInPath, profiles);
-
-            if (!string.IsNullOrWhiteSpace(userPath))
-            {
-                EnsureAssetFolderExists(userPath);
-                LoadProfilesFromPath(userPath, profiles);
-            }
-
-            return profiles;
+            return PristinePipelineUtility.LoadAllProfiles<FBXImportProfile>(
+                ToolSettings.FBX_ProfileSavePath,
+                ToolInfo.BuiltInImporterProfilePath,
+                onLoaded: (profile, path) => profile.isBuiltIn = path.StartsWith("Packages/")
+            );
         }
-
-        private static void LoadProfilesFromPath(string folderPath, List<FBXImportProfile> results)
-        {
-            string[] guids = AssetDatabase.FindAssets("t:FBXImportProfile", new[] { folderPath });
-
-            foreach (string guid in guids)
-            {
-                string path = AssetDatabase.GUIDToAssetPath(guid);
-                var profile = AssetDatabase.LoadAssetAtPath<FBXImportProfile>(path);
-
-                if (profile != null && !results.Contains(profile))
-                {
-                    results.Add(profile);
-                    profile.isBuiltIn = path.StartsWith("Packages/");
-                }
-            }
-        }
-
         public static string[] GetProfileDisplayNames(List<FBXImportProfile> profiles)
         {
-            return profiles
-                .Select(p => p.isBuiltIn ? $"{p.profileName} (Built-in)" : p.profileName)
-                .ToArray();
+            return PristinePipelineUtility.GetAssetDisplayNames(
+                profiles,
+                p => p.profileName,
+                p => p.isBuiltIn
+            );
         }
 
         // ── Profile persistence ──────────────────────────────────────────────────
 
         public static void SaveProfile(FBXImportProfile profile)
         {
-            if (profile == null) return;
-
-            EnsureDirectoryExists(ToolSettings.FBX_ProfileSavePath);
-
-            if (AssetDatabase.Contains(profile))
-            {
-                string existingPath = AssetDatabase.GetAssetPath(profile);
-                string expectedFile = profile.profileName + ".asset";
-
-                if (Path.GetFileName(existingPath) != expectedFile)
-                {
-                    string renameError = AssetDatabase.RenameAsset(existingPath, profile.profileName);
-                    if (!string.IsNullOrEmpty(renameError))
-                        Debug.LogWarning($"{ToolInfo.LogPrefix} Could not rename profile: {renameError}");
-                }
-
-                EditorUtility.SetDirty(profile);
-                AssetDatabase.SaveAssets();
-            }
-            else
-            {
-                string assetPath = Path.Combine(
-                    ToolSettings.FBX_ProfileSavePath,
-                    profile.profileName + ".asset").Replace("\\", "/");
-
-                AssetDatabase.CreateAsset(profile, assetPath);
-            }
-
-            AssetDatabase.Refresh();
-            Debug.Log($"{ToolInfo.LogPrefix} FBX Import Profile saved: {profile.profileName}");
+            PristinePipelineUtility.SaveProfile(
+                profile,
+                ToolSettings.FBX_ProfileSavePath,
+                p => p.profileName
+            );
         }
 
         public static void DeleteProfile(FBXImportProfile profile)
         {
-            if (profile == null) return;
-
-            string path = AssetDatabase.GetAssetPath(profile);
-
-            if (!string.IsNullOrEmpty(path))
-            {
-                AssetDatabase.DeleteAsset(path);
-                AssetDatabase.Refresh();
-                Debug.Log($"{ToolInfo.LogPrefix} Deleted FBX Import Profile: {profile.profileName}");
-            }
+            PristinePipelineUtility.DeleteProfile(
+                profile,
+                p => p.isBuiltIn,    // Built-in profiles cannot be deleted
+                p => p.profileName
+            );
         }
 
         public static FBXImportProfile CloneProfile(FBXImportProfile source)
         {
-            if (source == null) return null;
-
-            EnsureDirectoryExists(ToolSettings.FBX_ProfileSavePath);
-
-            string cloneName = source.profileName + "_Copy";
-            string assetPath = BuildUniqueAssetPath(ToolSettings.FBX_ProfileSavePath, cloneName);
-
-            var clone = UnityEngine.Object.Instantiate(source);
-            clone.profileName = Path.GetFileNameWithoutExtension(assetPath);
-
-            AssetDatabase.CreateAsset(clone, assetPath);
-            AssetDatabase.Refresh();
-
-            Debug.Log($"{ToolInfo.LogPrefix} Cloned '{source.profileName}' → '{clone.profileName}'");
-            return clone;
+            return PristinePipelineUtility.CloneProfile(
+                source,
+                ToolSettings.FBX_ProfileSavePath,
+                p => p.profileName,
+                src => UnityEngine.Object.Instantiate(src)  // Simple clone for FBXImportProfile
+            );
         }
 
         // ── Profile import / export ──────────────────────────────────────────────
 
         public static void ExportProfile(FBXImportProfile profile)
         {
-            if (profile == null) return;
-
-            string path = EditorUtility.SaveFilePanel(
-                "Export FBX Import Profile", "", profile.profileName, "json");
-
-            if (string.IsNullOrEmpty(path)) return;
-
-            var data = new FBXImportProfileData
-            {
-                profileName = profile.profileName,
-                description = profile.description,
-                enforceNamingConvention = profile.enforceNamingConvention,
-                validPrefixes = new List<string>(profile.validPrefixes),
-                defaultPreset = profile.defaultPreset,
-                rules = new List<FBXImportRule>(profile.Rules),
-                enableEmission = profile.enableEmission,
-                enableAmbientOcclusion = profile.enableAmbientOcclusion
-            };
-
-            File.WriteAllText(path, JsonUtility.ToJson(data, prettyPrint: true));
-            Debug.Log($"{ToolInfo.LogPrefix} Exported FBX Import Profile to: {path}");
+            PristinePipelineUtility.ExportProfile(
+                profile,
+                p => new FBXImportProfileData
+                {
+                    profileName = p.profileName,
+                    description = p.description,
+                    enforceNamingConvention = p.enforceNamingConvention,
+                    validPrefixes = new List<string>(p.validPrefixes),
+                    defaultPreset = p.defaultPreset,
+                    rules = new List<FBXImportRule>(p.Rules),
+                    enableEmission = p.enableEmission,
+                    enableAmbientOcclusion = p.enableAmbientOcclusion
+                },
+                p => p.profileName
+            );
         }
 
         public static FBXImportProfile ImportProfile()
         {
-            string path = EditorUtility.OpenFilePanel("Import FBX Import Profile", "", "json");
-            if (string.IsNullOrEmpty(path)) return null;
-
-            try
-            {
-                string json = File.ReadAllText(path);
-                var data = JsonUtility.FromJson<FBXImportProfileData>(json);
-
-                if (data == null || string.IsNullOrWhiteSpace(data.profileName))
+            return PristinePipelineUtility.ImportProfile<FBXImportProfile>(
+                ToolSettings.FBX_ProfileSavePath,
+                "FBX Import Profile",
+                json =>
                 {
-                    EditorUtility.DisplayDialog(
-                        "Import Failed",
-                        "The selected file is not a valid FBX Import Profile.",
-                        "OK");
-                    return null;
+                    var data = JsonUtility.FromJson<FBXImportProfileData>(json);
+                    if (data == null || string.IsNullOrWhiteSpace(data.profileName))
+                        return null;
+
+                    var profile = ScriptableObject.CreateInstance<FBXImportProfile>();
+                    profile.profileName = data.profileName;
+                    profile.description = data.description;
+                    profile.enforceNamingConvention = data.enforceNamingConvention;
+                    profile.validPrefixes = data.validPrefixes ?? new List<string>();
+                    profile.defaultPreset = data.defaultPreset ?? new FBXImportPreset { presetName = "Default" };
+                    SanitizePreset(profile.defaultPreset);
+                    profile.enableEmission = data.enableEmission;
+                    profile.enableAmbientOcclusion = data.enableAmbientOcclusion;
+
+                    var rules = data.rules ?? new List<FBXImportRule>();
+                    foreach (var rule in rules)
+                        if (rule?.preset != null) SanitizePreset(rule.preset);
+                    profile.SetRules(rules);
+
+                    return profile;
                 }
-
-                EnsureDirectoryExists(ToolSettings.FBX_ProfileSavePath);
-                string assetPath = BuildUniqueAssetPath(ToolSettings.FBX_ProfileSavePath, data.profileName);
-
-                var profile = ScriptableObject.CreateInstance<FBXImportProfile>();
-                profile.profileName = Path.GetFileNameWithoutExtension(assetPath);
-                profile.description = data.description;
-                profile.enforceNamingConvention = data.enforceNamingConvention;
-                profile.validPrefixes = data.validPrefixes ?? new List<string>();
-                profile.defaultPreset = data.defaultPreset ?? new FBXImportPreset { presetName = "Default" };
-                SanitizePreset(profile.defaultPreset);
-                profile.enableEmission = data.enableEmission;
-                profile.enableAmbientOcclusion = data.enableAmbientOcclusion;
-
-                var rules = data.rules ?? new List<FBXImportRule>();
-                foreach (var rule in rules)
-                    if (rule?.preset != null) SanitizePreset(rule.preset);
-                profile.SetRules(rules);
-
-                AssetDatabase.CreateAsset(profile, assetPath);
-                AssetDatabase.Refresh();
-
-                Debug.Log($"{ToolInfo.LogPrefix} Imported FBX Import Profile: {profile.profileName}");
-                return profile;
-            }
-            catch (Exception ex)
-            {
-                Debug.LogError($"{ToolInfo.LogPrefix} Import failed: {ex.Message}");
-                EditorUtility.DisplayDialog("Import Failed", "An error occurred while reading the file.", "OK");
-                return null;
-            }
+            );
         }
 
         /// <summary>
@@ -228,13 +138,13 @@ namespace GlyphLabs.PristinePipeline
             if (string.IsNullOrWhiteSpace(preset.materialPrefix))
                 preset.materialPrefix = "M_";
 
-            preset.materialsFolder = StripAssetsPrefix(
+            preset.materialsFolder = PristinePipelineUtility.StripAssetsPrefix(
                 string.IsNullOrWhiteSpace(preset.materialsFolder) ? "Art/Materials" : preset.materialsFolder);
 
-            preset.texturesFolder = StripAssetsPrefix(
+            preset.texturesFolder = PristinePipelineUtility.StripAssetsPrefix(
                 string.IsNullOrWhiteSpace(preset.texturesFolder) ? "Art/Textures" : preset.texturesFolder);
 
-            preset.prefabsFolder = StripAssetsPrefix(
+            preset.prefabsFolder = PristinePipelineUtility.StripAssetsPrefix(
                 string.IsNullOrWhiteSpace(preset.prefabsFolder) ? "Level/Prefabs" : preset.prefabsFolder);
 
             if (preset.scaleFactor <= 0f)
@@ -330,7 +240,7 @@ namespace GlyphLabs.PristinePipeline
             foreach (FBXImportRule rule in profile.Rules)
             {
                 if (!rule.HasNamePattern) continue;
-                if (!MatchesWildcard(fileName, rule.namePattern)) continue;
+                if (!PristinePipelineUtility.MatchesWildcard(fileName, rule.namePattern)) continue;
                 lastMatch = rule.preset;
             }
 
@@ -341,41 +251,6 @@ namespace GlyphLabs.PristinePipeline
                 $"Applying default preset from profile '{profile.profileName}'.");
 
             return profile.defaultPreset;
-        }
-
-        /// <summary>
-        /// Wildcard pattern matching — * (any sequence) and ? (any single char).
-        /// Case-insensitive. Dynamic programming, handles all edge cases.
-        /// </summary>
-        public static bool MatchesWildcard(string input, string pattern)
-        {
-            if (string.IsNullOrEmpty(pattern)) return true;
-            if (string.IsNullOrEmpty(input)) return false;
-
-            input = input.ToLowerInvariant();
-            pattern = pattern.ToLowerInvariant();
-
-            int inputLen = input.Length;
-            int patternLen = pattern.Length;
-
-            bool[,] dp = new bool[inputLen + 1, patternLen + 1];
-            dp[0, 0] = true;
-
-            for (int j = 1; j <= patternLen; j++)
-                if (pattern[j - 1] == '*') dp[0, j] = dp[0, j - 1];
-
-            for (int i = 1; i <= inputLen; i++)
-            {
-                for (int j = 1; j <= patternLen; j++)
-                {
-                    if (pattern[j - 1] == '*')
-                        dp[i, j] = dp[i, j - 1] || dp[i - 1, j];
-                    else if (pattern[j - 1] == '?' || pattern[j - 1] == input[i - 1])
-                        dp[i, j] = dp[i - 1, j - 1];
-                }
-            }
-
-            return dp[inputLen, patternLen];
         }
 
         // ── ModelImporter configuration ──────────────────────────────────────────
@@ -422,8 +297,8 @@ namespace GlyphLabs.PristinePipeline
             if (importedModel == null || preset == null) return new List<Material>();
             if (string.IsNullOrWhiteSpace(preset.materialsFolder)) return new List<Material>();
 
-            string folder = ToolSettings.ResolveRelativeToActiveRoot(preset.materialsFolder);
-            EnsureAssetFolderExists(folder);
+            string folder = PristinePipelineUtility.ResolveRelativeToActiveRoot(preset.materialsFolder);
+            PristinePipelineUtility.EnsureAssetFolderExists(folder);
 
             var renderers = importedModel.GetComponentsInChildren<Renderer>(includeInactive: true);
             var materialNames = renderers
@@ -456,17 +331,27 @@ namespace GlyphLabs.PristinePipeline
 
             foreach (string rawName in materialNames)
             {
-                string baseName = StripAssetsPrefix(rawName);
+                string baseName = StripConfiguredPrefix(rawName, preset.materialPrefix);
                 string matName = string.IsNullOrWhiteSpace(preset.materialPrefix)
                     ? baseName
                     : preset.materialPrefix + baseName;
 
                 string matPath = folder + "/" + matName + ".mat";
 
-                var existing = AssetDatabase.LoadAssetAtPath<Material>(matPath);
-                if (existing != null) { created.Add(existing); continue; }
+                // Robust scoped lookup
+                var existing = FindExistingMaterial(
+                    folder,
+                    baseName,
+                    preset.materialPrefix);
+
+                if (existing != null) 
+                { 
+                    created.Add(existing); 
+                    continue; 
+                }
 
                 var mat = new Material(shader) { name = matName };
+
                 AssetDatabase.CreateAsset(mat, matPath);
                 created.Add(mat);
 
@@ -491,7 +376,7 @@ namespace GlyphLabs.PristinePipeline
         {
             if (material == null || preset == null || profile == null) return false;
 
-            string folder = ToolSettings.ResolveRelativeToActiveRoot(preset.texturesFolder);
+            string folder = PristinePipelineUtility.ResolveRelativeToActiveRoot(preset.texturesFolder);
 
             if (!AssetDatabase.IsValidFolder(folder))
             {
@@ -503,7 +388,7 @@ namespace GlyphLabs.PristinePipeline
 
             // Strip known material prefixes so the search key matches texture file names.
             // e.g. "M_SM_Rock" → "SM_Rock" → matches "SM_Rock_BC.png"
-            string searchName = StripAssetsPrefix(baseName);
+            string searchName = StripConfiguredPrefix(baseName, preset.materialPrefix);
             bool dirty = false;
 
             var baseColor = FindTextureFromPatterns(folder, searchName, preset.baseColorPatterns);
@@ -579,7 +464,7 @@ namespace GlyphLabs.PristinePipeline
         {
             if (string.IsNullOrEmpty(fbxAssetPath) || preset == null) return null;
 
-            string folder = ToolSettings.ResolveRelativeToActiveRoot(preset.prefabsFolder);
+            string folder = PristinePipelineUtility.ResolveRelativeToActiveRoot(preset.prefabsFolder);
             string baseName = Path.GetFileNameWithoutExtension(fbxAssetPath);
             string prefabPath = folder + "/" + baseName + ".prefab";
 
@@ -598,7 +483,7 @@ namespace GlyphLabs.PristinePipeline
                 return null;
             }
 
-            EnsureAssetFolderExists(folder);
+            PristinePipelineUtility.EnsureAssetFolderExists(folder);
 
             var instance = UnityEngine.Object.Instantiate(sourceMesh);
             instance.name = baseName;
@@ -966,7 +851,7 @@ namespace GlyphLabs.PristinePipeline
                     // Pass 2 — name after stripping prefix, in case pass 1 found nothing
                     if (!assigned)
                     {
-                        string stripped = StripAssetsPrefix(mat.name);
+                        string stripped = StripConfiguredPrefix(mat.name, preset.materialPrefix);
                         if (!string.Equals(stripped, mat.name, StringComparison.OrdinalIgnoreCase))
                             assigned = AssignTextures(mat, stripped, preset, profile);
                     }
@@ -1008,7 +893,7 @@ namespace GlyphLabs.PristinePipeline
             foreach (FBXImportRule rule in profile.Rules)
             {
                 if (!rule.HasNamePattern) continue;
-                if (MatchesWildcard(materialName, rule.namePattern))
+                if (PristinePipelineUtility.MatchesWildcard(materialName, rule.namePattern))
                     lastMatch = rule.preset;
             }
 
@@ -1186,57 +1071,68 @@ namespace GlyphLabs.PristinePipeline
         }
 
         /// <summary>
-        /// Strips a leading "Assets/" from a path, returning just the relative portion.
-        /// Used when sanitizing profiles exported before v1.2.
+        /// Removes the configured material prefix if already present.
+        /// Example:
+        ///     M_Rock -> Rock
+        ///     M_M_Rock -> M_Rock (single-pass)
         /// </summary>
-        private static string StripAssetsPrefix(string path)
+        private static string StripConfiguredPrefix(
+            string assetName,
+            string prefix)
         {
-            if (path.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase))
-                return path["Assets/".Length..];
-            return path;
-        }
+            if (string.IsNullOrWhiteSpace(assetName))
+                return string.Empty;
 
-        private static string ProjectRoot =>
-            Application.dataPath[..^"/Assets".Length];
+            if (string.IsNullOrWhiteSpace(prefix))
+                return assetName;
 
-        private static string ToAbsolutePath(string unityAssetPath) =>
-            Path.Combine(ProjectRoot, unityAssetPath).Replace("\\", "/");
-
-        private static void EnsureAssetFolderExists(string folderPath)
-        {
-            if (AssetDatabase.IsValidFolder(folderPath)) return;
-
-            string[] segments = folderPath.Split('/');
-            string current = segments[0];
-
-            for (int i = 1; i < segments.Length; i++)
+            while (assetName.StartsWith(
+                       prefix,
+                       StringComparison.OrdinalIgnoreCase))
             {
-                string next = current + "/" + segments[i];
-                if (!AssetDatabase.IsValidFolder(next))
-                    AssetDatabase.CreateFolder(current, segments[i]);
-                current = next;
-            }
-        }
-
-        private static void EnsureDirectoryExists(string unityAssetPath)
-        {
-            string absolutePath = ToAbsolutePath(unityAssetPath);
-            if (!Directory.Exists(absolutePath))
-                Directory.CreateDirectory(absolutePath);
-        }
-
-        private static string BuildUniqueAssetPath(string folderPath, string baseName)
-        {
-            string candidate = Path.Combine(folderPath, baseName + ".asset").Replace("\\", "/");
-            int counter = 1;
-
-            while (File.Exists(ToAbsolutePath(candidate)))
-            {
-                candidate = Path.Combine(folderPath, $"{baseName}{counter}.asset").Replace("\\", "/");
-                counter++;
+                assetName = assetName[prefix.Length..];
             }
 
-            return candidate;
+            return assetName;
+        }
+
+        /// <summary>
+        /// Searches all materials and then normalize names before comparing to the normalized base name.
+        /// </summary>
+        private static Material FindExistingMaterial(
+            string materialsFolder,
+            string normalizedBaseName,
+            string materialPrefix)
+        {
+            string[] guids = AssetDatabase.FindAssets(
+                "t:Material",
+                new[] { materialsFolder });
+
+            foreach (string guid in guids)
+            {
+                string path = AssetDatabase.GUIDToAssetPath(guid);
+
+                Material mat =
+                    AssetDatabase.LoadAssetAtPath<Material>(path);
+
+                if (mat == null)
+                    continue;
+
+                string normalizedExisting =
+                    StripConfiguredPrefix(
+                        mat.name,
+                        materialPrefix);
+
+                if (string.Equals(
+                        normalizedExisting,
+                        normalizedBaseName,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    return mat;
+                }
+            }
+
+            return null;
         }
     }
 }

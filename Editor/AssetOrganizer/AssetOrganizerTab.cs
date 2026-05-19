@@ -53,15 +53,9 @@ namespace GlyphLabs.PristinePipeline
         private List<string> _additionalPaths;
         private ReorderableList _additionalPathsList;
 
-        // ── Create / Edit state ──────────────────────────────────────────────────
+        // ── Creator state ────────────────────────────────────────────────────────
 
-        private AssetMappingProfile _editTarget = null;
-        private bool _isEditMode = false;
-        private string _editName = "";
-        private string _editDescription = "";
-        private List<MappingRule> _editRules = new();
-        private ReorderableList _reorderableList;
-        private bool _isDirty = false;
+        private readonly AssetMappingProfileCreatorTab _creator = new();
 
         // ── Lifecycle ────────────────────────────────────────────────────────────
 
@@ -326,8 +320,7 @@ namespace GlyphLabs.PristinePipeline
                 EditorStyles.miniBoldLabel);
             EditorGUILayout.Space(2);
 
-            if (_additionalPathsList != null)
-                _additionalPathsList.DoLayoutList();
+            _additionalPathsList?.DoLayoutList();
 
             EditorGUILayout.Space(2);
         }
@@ -357,15 +350,17 @@ namespace GlyphLabs.PristinePipeline
             {
                 if (GUILayout.Button("New Profile", GUILayout.Width(halfWidth)))
                 {
-                    BeginCreate();
+                    _creator.BeginCreate();
                     _mode = Mode.CreateEdit;
                     parentWindow.Repaint();
                 }
 
-                GUI.enabled = selected != null;
+                // Edit button - disabled for built-in profiles
+                GUI.enabled = selected != null && !selected.isBuiltIn;
+
                 if (GUILayout.Button("Edit Profile", GUILayout.Width(halfWidth)))
                 {
-                    BeginEdit(selected);
+                    _creator.BeginEdit(selected);
                     _mode = Mode.CreateEdit;
                     parentWindow.Repaint();
                 }
@@ -385,6 +380,9 @@ namespace GlyphLabs.PristinePipeline
                     int idx = _profiles.IndexOf(clone);
                     if (idx >= 0) _selectedIndex = idx;
                 }
+
+                // Delete button - disabled for built-in profiles
+                GUI.enabled = selected != null && !selected.isBuiltIn;
 
                 Color prev = GUI.backgroundColor;
                 GUI.backgroundColor = new Color(1f, 0.4f, 0.4f);
@@ -431,259 +429,25 @@ namespace GlyphLabs.PristinePipeline
 
         // ── Create / Edit mode ───────────────────────────────────────────────────
 
-        private void BeginCreate()
-        {
-            _isEditMode = false;
-            _editTarget = null;
-            _editName = "";
-            _editDescription = "";
-            _editRules = new List<MappingRule>();
-            _isDirty = false;
-            BuildReorderableList();
-        }
-
-        private void BeginEdit(AssetMappingProfile profile)
-        {
-            _isEditMode = true;
-            _editTarget = profile;
-            _editName = profile.profileName;
-            _editDescription = profile.description;
-            _editRules = new List<MappingRule>(profile.Rules);
-            _isDirty = false;
-            BuildReorderableList();
-        }
-
         private void DrawCreateEditMode(EditorWindow parentWindow)
         {
-            if (!DrawCreateEditHeader(parentWindow)) return;
-            PristinePipelineWindow.DrawDivider();
-            DrawCreateEditFields();
-            EditorGUILayout.Space(6);
-            DrawRulesList();
-            EditorGUILayout.Space(10);
-            PristinePipelineWindow.DrawDivider();
-            DrawSaveButton(parentWindow);
-            EditorGUILayout.Space(8);
-        }
+            bool saved = _creator.Draw(out AssetMappingProfile savedProfile, out bool wantsBack);
 
-        private bool DrawCreateEditHeader(EditorWindow parentWindow)
-        {
-            EditorGUILayout.Space(8);
-
-            using (new EditorGUILayout.HorizontalScope())
+            if (saved && savedProfile != null)
             {
-                if (GUILayout.Button("← Back", GUILayout.Width(70)))
-                {
-                    if (_isDirty)
-                    {
-                        bool discard = EditorUtility.DisplayDialog(
-                            "Unsaved Changes",
-                            "You have unsaved changes. Go back and discard them?",
-                            "Discard", "Keep Editing");
-                        if (!discard) return false;
-                    }
-                    _mode = Mode.List;
-                    parentWindow.Repaint();
-                    return false;
-                }
-
-                GUIStyle heading = new(EditorStyles.boldLabel) { fontSize = 13 };
-                string label = _isEditMode
-                    ? $"Edit  —  {_editTarget.profileName}"
-                    : "New Profile";
-                EditorGUILayout.LabelField(label, heading);
-            }
-
-            EditorGUILayout.Space(6);
-            return true;
-        }
-
-        private void DrawCreateEditFields()
-        {
-            EditorGUI.BeginChangeCheck();
-
-            _editName = EditorGUILayout.TextField(
-                new GUIContent("Profile Name", "Used as the asset filename."),
-                _editName);
-
-            if (string.IsNullOrWhiteSpace(_editName))
-                EditorGUILayout.HelpBox("Profile name cannot be empty.", MessageType.Error);
-
-            EditorGUILayout.Space(2);
-
-            _editDescription = EditorGUILayout.TextField(
-                new GUIContent("Description", "Short summary shown in the profile selector."),
-                _editDescription);
-
-            if (EditorGUI.EndChangeCheck())
-                _isDirty = true;
-        }
-
-        private void DrawRulesList()
-        {
-            EditorGUILayout.LabelField("Rules", EditorStyles.boldLabel);
-            EditorGUILayout.HelpBox(
-                "Rules are evaluated in order — last match wins.",
-                MessageType.None);
-            EditorGUILayout.Space(2);
-
-            _reorderableList?.DoLayoutList();
-
-            if (_editRules.Count == 0)
-                EditorGUILayout.HelpBox("Add at least one rule.", MessageType.Warning);
-        }
-
-        private void BuildReorderableList()
-        {
-            _reorderableList = new ReorderableList(
-                _editRules, typeof(MappingRule),
-                draggable: true,
-                displayHeader: true,
-                displayAddButton: true,
-                displayRemoveButton: true)
-            {
-                drawHeaderCallback = rect =>
-                {
-                    float w = rect.width;
-                    float x = rect.x;
-                    float ext = 60f;
-                    float pat = 110f;
-                    float del = 40f;
-                    float dst = w - ext - pat - del - 12f;
-
-                    EditorGUI.LabelField(new Rect(x, rect.y, ext, rect.height),
-                        "Ext", EditorStyles.miniBoldLabel);
-                    EditorGUI.LabelField(new Rect(x + ext + 4, rect.y, pat, rect.height),
-                        "Name pattern", EditorStyles.miniBoldLabel);
-                    EditorGUI.LabelField(new Rect(x + ext + pat + 8, rect.y, dst, rect.height),
-                        "Destination", EditorStyles.miniBoldLabel);
-                },
-
-                drawElementCallback = (rect, index, isActive, isFocused) =>
-                {
-                    if (index < 0 || index >= _editRules.Count) return;
-
-                    MappingRule rule = _editRules[index];
-                    rect.y += 2;
-                    rect.height = EditorGUIUtility.singleLineHeight;
-
-                    float w = rect.width;
-                    float ext = 60f;
-                    float pat = 110f;
-                    float del = 40f;
-                    float dst = w - ext - pat - del - 12f;
-
-                    EditorGUI.BeginChangeCheck();
-
-                    string rawExt = EditorGUI.TextField(
-                        new Rect(rect.x, rect.y, ext, rect.height), rule.extension);
-                    rule.extension = rawExt.TrimStart('.').ToLowerInvariant();
-
-                    rule.namePattern = EditorGUI.TextField(
-                        new Rect(rect.x + ext + 4, rect.y, pat, rect.height),
-                        rule.namePattern);
-
-                    rule.destinationFolder = EditorGUI.TextField(
-                        new Rect(rect.x + ext + pat + 8, rect.y, dst, rect.height),
-                        rule.destinationFolder);
-
-                    if (EditorGUI.EndChangeCheck()) _isDirty = true;
-
-                    var messages = AssetOrganizerUtility.ValidateRule(rule);
-                    float warningY = rect.y + EditorGUIUtility.singleLineHeight + 2;
-
-                    foreach (string msg in messages)
-                    {
-                        EditorGUI.HelpBox(
-                            new Rect(rect.x, warningY, rect.width,
-                                EditorGUIUtility.singleLineHeight + 4),
-                            msg, MessageType.Warning);
-                        warningY += EditorGUIUtility.singleLineHeight + 6;
-                    }
-                },
-
-                elementHeightCallback = index =>
-                {
-                    float height = EditorGUIUtility.singleLineHeight + 4;
-                    if (index < 0 || index >= _editRules.Count) return height;
-                    var messages = AssetOrganizerUtility.ValidateRule(_editRules[index]);
-                    height += messages.Count * (EditorGUIUtility.singleLineHeight + 6);
-                    return height;
-                },
-
-                onAddCallback = _ => { _editRules.Add(new MappingRule()); _isDirty = true; },
-                onRemoveCallback = list => { _editRules.RemoveAt(list.index); _isDirty = true; }
-            };
-        }
-
-        private void DrawSaveButton(EditorWindow parentWindow)
-        {
-            if (GUILayout.Button("Save Profile", GUILayout.Height(30)))
-            {
-                if (!ValidateBeforeSave()) return;
-
-                AssetMappingProfile profile = BuildOrUpdateProfile();
-                AssetOrganizerUtility.SaveProfile(profile);
-
                 RefreshProfiles();
-                int idx = _profiles.IndexOf(profile);
+                int idx = _profiles.IndexOf(savedProfile);
                 if (idx >= 0) _selectedIndex = idx;
-
-                _isDirty = false;
                 _mode = Mode.List;
                 parentWindow.Repaint();
             }
-        }
-
-        private bool ValidateBeforeSave()
-        {
-            if (string.IsNullOrWhiteSpace(_editName))
+            else if (wantsBack)
             {
-                EditorUtility.DisplayDialog("Cannot Save", "Profile name cannot be empty.", "OK");
-                return false;
+                _mode = Mode.List;
+                parentWindow.Repaint();
             }
-
-            if (_editRules.Count == 0)
-            {
-                EditorUtility.DisplayDialog("Cannot Save", "Add at least one rule.", "OK");
-                return false;
-            }
-
-            if (!_isEditMode)
-            {
-                string assetPath = Path.Combine(
-                    ToolSettings.Organizer_ProfileSavePath,
-                    _editName.Trim() + ".asset").Replace("\\", "/");
-
-                if (AssetDatabase.LoadAssetAtPath<AssetMappingProfile>(assetPath) != null)
-                {
-                    EditorUtility.DisplayDialog(
-                        "Duplicate Profile",
-                        $"A profile named '{_editName}' already exists.", "OK");
-                    return false;
-                }
-            }
-
-            return true;
-        }
-
-        private AssetMappingProfile BuildOrUpdateProfile()
-        {
-            if (_isEditMode && _editTarget != null)
-            {
-                _editTarget.profileName = _editName.Trim();
-                _editTarget.description = _editDescription.Trim();
-                _editTarget.SetRules(_editRules);
-                return _editTarget;
-            }
-
-            var p = ScriptableObject.CreateInstance<AssetMappingProfile>();
-            p.profileName = _editName.Trim();
-            p.description = _editDescription.Trim();
-            p.SetRules(_editRules);
-            return p;
-        }
-
+        }  
+        
         // ── Additional scope paths helpers ────────────────────────────────────────
 
         private void LoadAdditionalPaths()

@@ -2,6 +2,7 @@
 using UnityEditor;
 using UnityEditor.IMGUI.Controls;
 using UnityEngine;
+using UnityEngine.Profiling;
 
 namespace GlyphLabs.PristinePipeline
 {
@@ -47,7 +48,7 @@ namespace GlyphLabs.PristinePipeline
 
         // ── Creator state ────────────────────────────────────────────────────────
 
-        private readonly TemplateCreatorTab _creator = new();
+        private readonly FolderGeneratorTemplateCreatorTab _creator = new();
 
         // ── Lifecycle ────────────────────────────────────────────────────────────
 

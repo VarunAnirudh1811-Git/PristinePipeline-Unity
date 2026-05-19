@@ -456,7 +456,7 @@ namespace GlyphLabs.PristinePipeline
         {
             if (string.IsNullOrWhiteSpace(unityAssetPath)) return false;
 
-            string projectRoot = Application.dataPath[..^"Assets".Length];
+            string projectRoot = PristinePipelineUtility.ProjectRoot;
             string absolute = Path.Combine(projectRoot, unityAssetPath).Replace("\\", "/");
             return Directory.Exists(absolute);
         }
@@ -468,7 +468,7 @@ namespace GlyphLabs.PristinePipeline
         /// </summary>
         private static void TrySetRootFromAbsolutePath(string absolute)
         {
-            string projectRoot = Application.dataPath[..^"Assets".Length];
+            string projectRoot = PristinePipelineUtility.ProjectRoot;
             absolute = absolute.Replace("\\", "/");
 
             if (!absolute.StartsWith(projectRoot))
